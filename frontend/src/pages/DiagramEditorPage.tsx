@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, Edit2, ArrowLeft, Home, Grid3X3 } from 'lucide-react';
+import { Plus, Trash2, Edit2, ArrowLeft, Home, Grid3X3, Download } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 
@@ -58,6 +58,17 @@ export const DiagramEditorPage: React.FC = () => {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [autoSave, setAutoSave] = useState(true);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  
+  // Export states
+  const [isExporting, setIsExporting] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportConfig, setExportConfig] = useState({
+    framework: 'yii2',
+    namespace: 'app\\models',
+    generateMigration: true,
+    generateModel: true,
+    generateRepository: true
+  });
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const { token, isAuthenticated } = useAuthStore();
@@ -469,6 +480,65 @@ export const DiagramEditorPage: React.FC = () => {
     }
   };
 
+  // Export functions
+  const exportDiagram = async () => {
+    if (!diagramId || !token) {
+      alert('Please save the diagram first before exporting');
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const response = await fetch(`/api/export/${exportConfig.framework}/${diagramId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          namespace: exportConfig.namespace,
+          generateMigration: exportConfig.generateMigration,
+          generateModel: exportConfig.generateModel,
+          generateRepository: exportConfig.generateRepository
+        })
+      });
+
+      if (response.ok) {
+        // Get the filename from the response header or generate one
+        const contentDisposition = response.headers.get('content-disposition');
+        let filename = `${diagramName}_${exportConfig.framework}_${Date.now()}.zip`;
+        
+        if (contentDisposition) {
+          const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+          if (filenameMatch) {
+            filename = filenameMatch[1];
+          }
+        }
+
+        // Create a blob and download the file
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        setShowExportModal(false);
+      } else {
+        const errorData = await response.json();
+        alert(`Export failed: ${errorData.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Export failed. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="h-screen flex flex-col bg-gray-100">
       {/* Header */}
@@ -549,6 +619,15 @@ export const DiagramEditorPage: React.FC = () => {
             </button>
             <button className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-md transition-colors">
               Share
+            </button>
+            <button 
+              onClick={() => setShowExportModal(true)}
+              disabled={!diagramId}
+              className="flex items-center px-3 py-1 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-md transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+              title={diagramId ? 'Export diagram code' : 'Save diagram first to export'}
+            >
+              <Download className="w-4 h-4 mr-1" />
+              Export
             </button>
             <button
               onClick={saveDiagram}
@@ -1043,6 +1122,101 @@ export const DiagramEditorPage: React.FC = () => {
                     setNewTableName('');
                   }}
                   className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Export Modal */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96">
+            <h3 className="text-lg font-semibold mb-4">Export Diagram</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Framework</label>
+                <select
+                  value={exportConfig.framework}
+                  onChange={(e) => setExportConfig({...exportConfig, framework: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                >
+                  <option value="yii2">Yii2 Framework</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Namespace</label>
+                <input
+                  type="text"
+                  value={exportConfig.namespace}
+                  onChange={(e) => setExportConfig({...exportConfig, namespace: e.target.value})}
+                  placeholder="app\\models"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Generate Files</label>
+                <div className="space-y-2">
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={exportConfig.generateMigration}
+                      onChange={(e) => setExportConfig({...exportConfig, generateMigration: e.target.checked})}
+                      className="mr-2"
+                    />
+                    Database Migrations
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={exportConfig.generateModel}
+                      onChange={(e) => setExportConfig({...exportConfig, generateModel: e.target.checked})}
+                      className="mr-2"
+                    />
+                    ActiveRecord Models
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={exportConfig.generateRepository}
+                      onChange={(e) => setExportConfig({...exportConfig, generateRepository: e.target.checked})}
+                      className="mr-2"
+                    />
+                    Repository Classes
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex space-x-3 pt-4">
+                <button
+                  onClick={exportDiagram}
+                  disabled={isExporting}
+                  className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-purple-300 disabled:cursor-not-allowed flex items-center justify-center"
+                >
+                  {isExporting ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4 mr-2" />
+                      Export & Download
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => setShowExportModal(false)}
+                  disabled={isExporting}
+                  className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>

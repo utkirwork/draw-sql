@@ -1,0 +1,80 @@
+<?php
+
+namespace {{namespace}}\models;
+
+use {{namespace}}\models\getter\{{modelName}}GetterTrait;
+use {{namespace}}\models\relation\{{modelName}}RelationTrait;
+use {{namespace}}\models\scope\{{modelName}}ScopeTrait;
+use {{namespace}}\models\setter\{{modelName}}SetterTrait;
+use {{namespace}}\models\query\{{modelName}}Query;
+use yii\db\ActiveRecord;
+
+/**
+ * This is the model class for table "{{tableName}}".
+ *
+{{#each columns}}
+ * @property {{phpType}} ${{name}} {{comment}}
+{{/each}}
+ */
+class {{modelName}} extends ActiveRecord
+{
+    use {{modelName}}GetterTrait;
+    use {{modelName}}RelationTrait;
+    use {{modelName}}ScopeTrait;
+    use {{modelName}}SetterTrait;
+
+    /**
+     * {@inheritdoc}
+     */
+    public static function tableName()
+    {
+        return '{{tableName}}';
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function rules()
+    {
+        return [
+{{#each columns}}
+{{#if required}}
+            [['{{name}}'], 'required'],
+{{/if}}
+{{#if isString}}
+            [['{{name}}'], 'string'{{#if maxLength}}, 'max' => {{maxLength}}{{/if}}],
+{{/if}}
+{{#if isInteger}}
+            [['{{name}}'], 'integer'],
+{{/if}}
+{{#if isBoolean}}
+            [['{{name}}'], 'boolean'],
+{{/if}}
+{{#if isEmail}}
+            [['{{name}}'], 'email'],
+{{/if}}
+{{/each}}
+        ];
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function attributeLabels()
+    {
+        return [
+{{#each columns}}
+            '{{name}}' => '{{label}}',
+{{/each}}
+        ];
+    }
+
+    /**
+     * {@inheritdoc}
+     * @return {{modelName}}Query the active query used by this AR class.
+     */
+    public static function find()
+    {
+        return new {{modelName}}Query(get_called_class());
+    }
+} 

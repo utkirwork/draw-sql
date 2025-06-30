@@ -19,7 +19,7 @@ import diagramRoutes from '@/routes/diagrams';
 import tableRoutes from '@/routes/tables';
 import collaborationRoutes from '@/routes/collaboration';
 import templateRoutes from '@/routes/templates';
-// import exportRoutes from '@/routes/export';
+import exportRoutes from '@/routes/export';
 
 // Load environment variables
 dotenv.config();
@@ -97,7 +97,7 @@ app.use('/api/diagrams', authMiddleware, diagramRoutes);
 app.use('/api/tables', authMiddleware, tableRoutes);
 app.use('/api/collaboration', authMiddleware, collaborationRoutes);
 app.use('/api/templates', templateRoutes); // Public templates don't need auth
-// app.use('/api/export', authMiddleware, exportRoutes);
+app.use('/api/export', exportRoutes);
 
 // Socket.IO setup
 setupSocketHandlers(io);

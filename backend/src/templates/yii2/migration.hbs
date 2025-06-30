@@ -1,0 +1,90 @@
+<?php
+
+namespace {{namespace}}\migrations;
+
+use console\models\BaseMigrate;
+use console\models\ForeignGenerateDTO;
+use yii\helpers\ArrayHelper;
+
+/**
+ * Class {{migrationClassName}}
+ * Migration to create {{tableName}} table
+ */
+class {{migrationClassName}} extends BaseMigrate
+{
+    public $is_alter_table = false;
+
+    /**
+     * {@inheritdoc}
+     */
+    public function safeUp()
+    {
+        $options = null;
+        if ($this->getDb()->getDriverName() == 'mysql') {
+            $options = "character set utf8 collate utf8_general_ci engine=InnoDB";
+        }
+
+        $this->createTable($this->getTableNameWithSchemeName(), ArrayHelper::merge([
+{{#each columns}}
+            '{{name}}' => $this->{{yiiType}}{{#unless nullable}}->notNull(){{/unless}}{{#if comment}}->comment('{{comment}}'){{/if}},
+{{/each}}
+        ], $this->getDefaultColumns()), $options);
+
+        parent::safeUp();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function safeDown()
+    {
+        $this->dropTable($this->getTableNameWithSchemeName());
+        parent::safeDown();
+    }
+
+    /**
+     * @return array
+     */
+    public function getIndexes(): array
+    {
+        return [
+{{#each indexes}}
+            '{{this}}',
+{{/each}}
+        ];
+    }
+
+    /**
+     * @return string
+     */
+    public function getTableName(): string
+    {
+        return '{{tableName}}';
+    }
+
+    /**
+     * @return string
+     */
+    public function getSchemeName(): string
+    {
+        return '{{schemaName}}';
+    }
+
+    /**
+     * @return ForeignGenerateDTO[]
+     */
+    public function getForeignKeys(): array
+    {
+        return [
+{{#each foreignKeys}}
+            new ForeignGenerateDTO([
+                'column' => '{{column}}',
+                'refTable' => '{{refTable}}',
+                'refColumn' => '{{refColumn}}',
+                'onDelete' => 'CASCADE',
+                'onUpdate' => 'CASCADE'
+            ]),
+{{/each}}
+        ];
+    }
+} 

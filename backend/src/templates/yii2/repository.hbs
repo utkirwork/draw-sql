@@ -1,0 +1,121 @@
+<?php
+
+namespace {{namespace}}\repository;
+
+use {{namespace}}\models\{{modelName}};
+use yii\data\ActiveDataProvider;
+use yii\db\ActiveQuery;
+
+/**
+ * Class {{modelName}}Repository
+ * Repository for {{modelName}} model
+ */
+class {{modelName}}Repository
+{
+    /**
+     * Find by ID
+     * @param int $id
+     * @return {{modelName}}|null
+     */
+    public function findById(int $id): ?{{modelName}}
+    {
+        return {{modelName}}::findOne($id);
+    }
+
+    /**
+     * Find all records
+     * @return {{modelName}}[]
+     */
+    public function findAll(): array
+    {
+        return {{modelName}}::find()->all();
+    }
+
+    /**
+     * Find with pagination
+     * @param array $params
+     * @return ActiveDataProvider
+     */
+    public function findWithPagination(array $params = []): ActiveDataProvider
+    {
+        $query = {{modelName}}::find();
+        
+        return new ActiveDataProvider([
+            'query' => $query,
+            'pagination' => [
+                'pageSize' => $params['pageSize'] ?? 20,
+            ],
+            'sort' => [
+                'defaultOrder' => [
+                    'id' => SORT_DESC,
+                ]
+            ],
+        ]);
+    }
+
+    /**
+     * Save model
+     * @param {{modelName}} $model
+     * @return bool
+     */
+    public function save({{modelName}} $model): bool
+    {
+        return $model->save();
+    }
+
+    /**
+     * Delete model
+     * @param {{modelName}} $model
+     * @return bool
+     * @throws \Throwable
+     * @throws \yii\db\StaleObjectException
+     */
+    public function delete({{modelName}} $model): bool
+    {
+        return (bool) $model->delete();
+    }
+
+    /**
+     * Find by condition
+     * @param array $condition
+     * @return {{modelName}}|null
+     */
+    public function findByCondition(array $condition): ?{{modelName}}
+    {
+        return {{modelName}}::find()->where($condition)->one();
+    }
+
+    /**
+     * Find all by condition
+     * @param array $condition
+     * @return {{modelName}}[]
+     */
+    public function findAllByCondition(array $condition): array
+    {
+        return {{modelName}}::find()->where($condition)->all();
+    }
+
+    /**
+     * Count records
+     * @param array $condition
+     * @return int
+     */
+    public function count(array $condition = []): int
+    {
+        $query = {{modelName}}::find();
+        if (!empty($condition)) {
+            $query->where($condition);
+        }
+        return $query->count();
+    }
+
+    /**
+     * Check if exists
+     * @param array $condition
+     * @return bool
+     */
+    public function exists(array $condition): bool
+    {
+        return {{modelName}}::find()->where($condition)->exists();
+    }
+} 

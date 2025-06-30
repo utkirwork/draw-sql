@@ -11,11 +11,12 @@ import { HomePage } from '@/pages/HomePage'
 import { LoginPage } from '@/pages/auth/LoginPage'
 import { RegisterPage } from '@/pages/auth/RegisterPage'
 import { DashboardPage } from '@/pages/DashboardPage'
-import { DiagramsPage } from '@/pages/DiagramsPage'
+import DiagramsPage from '@/pages/DiagramsPage'
 import { DiagramEditorPage } from '@/pages/DiagramEditorPage'
 import { TemplatesPage } from '@/pages/TemplatesPage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
+import TestPage from '@/TestPage'
 
 // Auth guard component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -63,7 +64,7 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 }
 
 function App() {
-  const { checkAuth, initializeAuth } = useAuthStore()
+  const { initializeAuth } = useAuthStore()
 
   useEffect(() => {
     // Initialize authentication on app start
@@ -75,6 +76,7 @@ function App() {
       <Routes>
         {/* Public routes */}
         <Route path="/" element={<HomePage />} />
+        <Route path="/test" element={<TestPage />} />
         <Route path="/templates" element={<TemplatesPage />} />
         
         {/* Auth routes - redirect to dashboard if already logged in */}
