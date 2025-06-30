@@ -67,7 +67,7 @@ export const DiagramEditorPage: React.FC = () => {
     if (!token) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/diagrams/${diagramId}`, {
+              const response = await fetch(`/api/diagrams/${diagramId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -422,8 +422,8 @@ export const DiagramEditorPage: React.FC = () => {
       };
 
       const url = diagramId 
-        ? `http://localhost:5000/api/diagrams/${diagramId}`
-        : 'http://localhost:5000/api/diagrams';
+        ? `/api/diagrams/${diagramId}`
+        : '/api/diagrams';
       
       const method = diagramId ? 'PUT' : 'POST';
 

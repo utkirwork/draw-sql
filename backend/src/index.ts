@@ -19,7 +19,7 @@ import diagramRoutes from '@/routes/diagrams';
 import tableRoutes from '@/routes/tables';
 import collaborationRoutes from '@/routes/collaboration';
 import templateRoutes from '@/routes/templates';
-import exportRoutes from '@/routes/export';
+// import exportRoutes from '@/routes/export';
 
 // Load environment variables
 dotenv.config();
@@ -34,7 +34,7 @@ const app = express();
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: process.env.FRONTEND_URL || ['http://localhost:3000', 'http://localhost:3001'],
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true
   }
@@ -57,7 +57,7 @@ app.use(helmet({
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: process.env.CORS_ORIGIN || ['http://localhost:3000', 'http://localhost:3001'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
@@ -97,7 +97,7 @@ app.use('/api/diagrams', authMiddleware, diagramRoutes);
 app.use('/api/tables', authMiddleware, tableRoutes);
 app.use('/api/collaboration', authMiddleware, collaborationRoutes);
 app.use('/api/templates', templateRoutes); // Public templates don't need auth
-app.use('/api/export', authMiddleware, exportRoutes);
+// app.use('/api/export', authMiddleware, exportRoutes);
 
 // Socket.IO setup
 setupSocketHandlers(io);

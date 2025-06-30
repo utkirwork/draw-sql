@@ -22,7 +22,7 @@ export const DashboardPage: React.FC = () => {
       if (!token) return;
       
       try {
-        const response = await fetch('http://localhost:5000/api/diagrams', {
+        const response = await fetch('/api/diagrams', {
           headers: {
             'Authorization': `Bearer ${token}`
           }

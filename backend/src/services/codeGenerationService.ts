@@ -45,14 +45,14 @@ export class CodeGenerationService {
   }
 
   private initializeTemplates() {
-    // Yii2 Migration Template
-    this.templates.yii2Migration = Handlebars.compile(`<?php
+    // Define templates as raw strings to avoid TypeScript parsing issues
+    const yii2MigrationTemplate = String.raw`<?php
 
-namespace {{namespace}}\\migrations;
+namespace {{namespace}}\migrations;
 
-use console\\models\\BaseMigrate;
-use console\\models\\ForeignGenerateDTO;
-use yii\\helpers\\ArrayHelper;
+use console\models\BaseMigrate;
+use console\models\ForeignGenerateDTO;
+use yii\helpers\ArrayHelper;
 
 /**
  * Class {{migrationClassName}}
@@ -74,7 +74,7 @@ class {{migrationClassName}} extends BaseMigrate
 
         $this->createTable($this->getTableNameWithSchemeName(), ArrayHelper::merge([
 {{#each columns}}
-            '{{this.name}}' => $this->{{this.yiiType}}{{#if this.nullable}}{{{else}}}->notNull(){{/if}}{{#if this.comment}}->comment('{{this.comment}}'){{/if}},
+            '{{name}}' => $this->{{yiiType}}{{#unless nullable}}->notNull(){{/unless}}{{#if comment}}->comment('{{comment}}'){{/if}},
 {{/each}}
         ], $this->getDefaultColumns()), $options);
 
@@ -135,30 +135,28 @@ class {{migrationClassName}} extends BaseMigrate
 {{/each}}
         ];
     }
-}
-`);
+}`;
 
-    // Yii2 Model Template
-    this.templates.yii2Model = Handlebars.compile(`<?php
+    const yii2ModelTemplate = String.raw`<?php
 
-namespace {{namespace}}\\models;
+namespace {{namespace}}\models;
 
-use {{namespace}}\\models\\scope\\{{className}}ScopeTrait;
-use {{namespace}}\\models\\relation\\{{className}}RelationTrait;
-use {{namespace}}\\models\\getter\\{{className}}GetterTrait;
-use {{namespace}}\\models\\setter\\{{className}}SetterTrait;
+use {{namespace}}\models\scope\{{className}}ScopeTrait;
+use {{namespace}}\models\relation\{{className}}RelationTrait;
+use {{namespace}}\models\getter\{{className}}GetterTrait;
+use {{namespace}}\models\setter\{{className}}SetterTrait;
 
 /**
  * This is the model class for table "{{schemaName}}.{{tableName}}".
  *
- * @OA\\Schema(
+ * @OA\Schema(
  *     description="{{className}} model representing {{description}}"
  * )
 {{#each columns}}
- * @property {{this.phpType}} {{#if this.nullable}}${{this.name}}{{else}}${{this.name}}{{/if}} {{this.comment}}
+ * @property {{phpType}} ${{name}} {{comment}}
 {{/each}}
  */
-class {{className}} extends \\yii\\db\\ActiveRecord
+class {{className}} extends \yii\db\ActiveRecord
 {
     use {{className}}ScopeTrait;
     use {{className}}RelationTrait;
@@ -166,13 +164,13 @@ class {{className}} extends \\yii\\db\\ActiveRecord
     use {{className}}SetterTrait;
 
 {{#each columns}}
-     /**
-      * @OA\\Property(
-      *   property="{{this.name}}",
-      *   type="{{this.swaggerType}}",
-      *   description="{{this.comment}}"
-      * )
-      */
+    /**
+     * @OA\Property(
+     *   property="{{name}}",
+     *   type="{{swaggerType}}",
+     *   description="{{comment}}"
+     * )
+     */
 {{/each}}
 
     /**
@@ -185,26 +183,24 @@ class {{className}} extends \\yii\\db\\ActiveRecord
 
     /**
      * {@inheritdoc}
-     * @return \\{{namespace}}\\models\\query\\{{className}}Query the active query used by this AR class.
+     * @return \{{namespace}}\models\query\{{className}}Query the active query used by this AR class.
      */
-    public static function find(): \\{{namespace}}\\models\\query\\{{className}}Query
+    public static function find(): \{{namespace}}\models\query\{{className}}Query
     {
-        return new \\{{namespace}}\\models\\query\\{{className}}Query(get_called_class());
+        return new \{{namespace}}\models\query\{{className}}Query(get_called_class());
     }
-}
-`);
+}`;
 
-    // Yii2 Repository Template
-    this.templates.yii2Repository = Handlebars.compile(`<?php
+    const yii2RepositoryTemplate = String.raw`<?php
 
-namespace {{namespace}}\\repository;
+namespace {{namespace}}\repository;
 
-use {{namespace}}\\models\\{{className}};
+use {{namespace}}\models\{{className}};
 
 /**
- * This is the Repository class for [[\\{{namespace}}\\models\\{{className}}]].
+ * This is the Repository class for [[\{{namespace}}\models\{{className}}]].
  *
- * @see \\{{namespace}}\\models\\{{className}}
+ * @see \{{namespace}}\models\{{className}}
  */
 class {{className}}Repository
 {
@@ -220,16 +216,16 @@ class {{className}}Repository
     }
 
 {{#each uniqueColumns}}
-     /**
-      * Get {{../lowerClassName}} by {{this.name}}
-      *
-      * @param {{this.phpType}} ${{this.name}}
-      * @return {{../className}}|null
-      */
-     public function getBy{{this.pascalName}}(${{this.name}}): ?{{../className}}
-     {
-         return {{../className}}::find()->{{this.name}}(${{this.name}})->one();
-     }
+    /**
+     * Get {{../lowerClassName}} by {{name}}
+     *
+     * @param {{phpType}} ${{name}}
+     * @return {{../className}}|null
+     */
+    public function getBy{{pascalName}}(${{name}}): ?{{../className}}
+    {
+        return {{../className}}::find()->{{name}}(${{name}})->one();
+    }
 {{/each}}
 
     /**
@@ -247,12 +243,12 @@ class {{className}}Repository
      *
      * @param {{className}} $model
      * @return {{className}}
-     * @throws \\Exception
+     * @throws \Exception
      */
     public function saveThrow({{className}} $model): {{className}}
     {
         if (!$model->save()) {
-            throw new \\Exception("{{className}} is not saved: " . json_encode($model->getErrors()));
+            throw new \Exception("{{className}} is not saved: " . json_encode($model->getErrors()));
         }
         return $model;
     }
@@ -277,22 +273,20 @@ class {{className}}Repository
     {
         return {{className}}::find()->count();
     }
-}
-`);
+}`;
 
-    // Yii2 Service Template
-    this.templates.yii2Service = Handlebars.compile(`<?php
+    const yii2ServiceTemplate = String.raw`<?php
 
-namespace {{namespace}}\\service;
+namespace {{namespace}}\service;
 
-use {{namespace}}\\dto\\{{lowerClassName}}\\{{className}}CreateDTO;
-use {{namespace}}\\dto\\{{lowerClassName}}\\{{className}}UpdateDTO;
-use {{namespace}}\\models\\{{className}};
-use {{namespace}}\\repository\\{{className}}Repository;
-use yii\\base\\Model;
+use {{namespace}}\dto\{{lowerClassName}}\{{className}}CreateDTO;
+use {{namespace}}\dto\{{lowerClassName}}\{{className}}UpdateDTO;
+use {{namespace}}\models\{{className}};
+use {{namespace}}\repository\{{className}}Repository;
+use yii\base\Model;
 
 /**
- * This is the Service class for [[\\{{namespace}}\\models\\{{className}}]].
+ * This is the Service class for [[\{{namespace}}\models\{{className}}]].
  *
  * @see {{className}}
  */
@@ -311,7 +305,7 @@ class {{className}}Service extends Model
      *
      * @param {{className}}CreateDTO $createDTO
      * @return {{className}}
-     * @throws \\Exception
+     * @throws \Exception
      */
     public function create({{className}}CreateDTO $createDTO): {{className}}
     {
@@ -329,7 +323,7 @@ class {{className}}Service extends Model
      * @param {{className}} $model
      * @param {{className}}UpdateDTO $updateDTO
      * @return {{className}}
-     * @throws \\Exception
+     * @throws \Exception
      */
     public function update({{className}} $model, {{className}}UpdateDTO $updateDTO): {{className}}
     {
@@ -350,19 +344,17 @@ class {{className}}Service extends Model
     {
         return $this->repository->delete($model);
     }
-}
-`);
+}`;
 
-    // Yii2 CreateDTO Template
-    this.templates.yii2CreateDTO = Handlebars.compile(`<?php
+    const yii2CreateDTOTemplate = String.raw`<?php
 
-namespace {{namespace}}\\dto\\{{lowerClassName}};
+namespace {{namespace}}\dto\{{lowerClassName}};
 
-use yii\\base\\Model;
+use yii\base\Model;
 
 /**
  * Class {{className}}CreateDTO
- * @package {{namespace}}\\dto\\{{lowerClassName}}
+ * @package {{namespace}}\dto\{{lowerClassName}}
  */
 class {{className}}CreateDTO extends Model
 {
@@ -402,23 +394,21 @@ class {{className}}CreateDTO extends Model
 {{/each}}
         ];
     }
-}
-`);
+}`;
 
-    // Yii2 ScopeTrait Template
-    this.templates.yii2ScopeTrait = Handlebars.compile(`<?php
+    const yii2ScopeTraitTemplate = String.raw`<?php
 
-namespace {{namespace}}\\models\\scope;
+namespace {{namespace}}\models\scope;
 
-use yii\\behaviors\\BlameableBehavior;
-use yii\\behaviors\\TimestampBehavior;
-use yii\\helpers\\ArrayHelper;
-use yii2tech\\ar\\softdelete\\SoftDeleteBehavior;
+use yii\behaviors\BlameableBehavior;
+use yii\behaviors\TimestampBehavior;
+use yii\helpers\ArrayHelper;
+use yii2tech\ar\softdelete\SoftDeleteBehavior;
 
 /**
- * This is the Scope Trait class for [[\\{{namespace}}\\models\\{{className}}]].
+ * This is the Scope Trait class for [[\{{namespace}}\models\{{className}}]].
  *
- * @see \\{{namespace}}\\models\\{{className}}
+ * @see \{{namespace}}\models\{{className}}
  */
 trait {{className}}ScopeTrait
 {
@@ -463,7 +453,7 @@ trait {{className}}ScopeTrait
                 'softDeleteAttributeValues' => [
                     'is_deleted' => true,
                     'deleted_at' => time(),
-                    'deleted_by' => \\Yii::$app->user->id ?? null
+                    'deleted_by' => \Yii::$app->user->id ?? null
                 ],
                 'replaceRegularDelete' => true
             ],
@@ -481,8 +471,15 @@ trait {{className}}ScopeTrait
 {{/each}}
         ];
     }
-}
-`);
+}`;
+
+    // Compile templates
+    this.templates.yii2Migration = Handlebars.compile(yii2MigrationTemplate);
+    this.templates.yii2Model = Handlebars.compile(yii2ModelTemplate);
+    this.templates.yii2Repository = Handlebars.compile(yii2RepositoryTemplate);
+    this.templates.yii2Service = Handlebars.compile(yii2ServiceTemplate);
+    this.templates.yii2CreateDTO = Handlebars.compile(yii2CreateDTOTemplate);
+    this.templates.yii2ScopeTrait = Handlebars.compile(yii2ScopeTraitTemplate);
   }
 
   private mapDataType(dbType: string): { yiiType: string; phpType: string; swaggerType: string } {
@@ -523,7 +520,7 @@ trait {{className}}ScopeTrait
     const archive = archiver('zip', { zlib: { level: 9 } });
     const buffers: Buffer[] = [];
 
-    archive.on('data', (data) => buffers.push(data));
+    archive.on('data', (data: Buffer) => buffers.push(data));
 
     const namespace = `xbsoft\\${diagramData.name.toLowerCase()}`;
     

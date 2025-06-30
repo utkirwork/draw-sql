@@ -187,7 +187,7 @@ export const TemplatesPage: React.FC = () => {
         description: template.description
       };
 
-      const response = await fetch('http://localhost:5000/api/diagrams', {
+              const response = await fetch('/api/diagrams', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

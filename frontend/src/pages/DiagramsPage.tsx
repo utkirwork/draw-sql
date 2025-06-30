@@ -23,7 +23,7 @@ export const DiagramsPage: React.FC = () => {
       if (!token) return;
       
       try {
-        const response = await fetch('http://localhost:5000/api/diagrams', {
+        const response = await fetch('/api/diagrams', {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -69,7 +69,7 @@ export const DiagramsPage: React.FC = () => {
     if (!confirm('Are you sure you want to delete this diagram?')) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/diagrams/${diagramId}`, {
+      const response = await fetch(`/api/diagrams/${diagramId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -88,7 +88,7 @@ export const DiagramsPage: React.FC = () => {
     setExportLoading(diagramId);
     
     try {
-      const response = await fetch(`http://localhost:5000/api/export/yii2/${diagramId}`, {
+      const response = await fetch(`/api/export/yii2/${diagramId}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
