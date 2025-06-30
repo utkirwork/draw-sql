@@ -1,0 +1,34 @@
+namespace: xbsoft\organization\tests
+actor_suffix: Tester
+paths:
+    tests: .
+    output: _output
+    data: _data
+    support: _support
+    envs: _envs
+settings:
+    bootstrap: _bootstrap.php
+    colors: true
+    memory_limit: 1024M
+coverage:
+    enabled: false
+modules:
+    config:
+        Yii2:
+            configFile: '/app/application/common/config/test-local.php'
+            cleanup: false
+suites:
+    unit:
+        actor: UnitTester
+        modules:
+            enabled:
+                - Asserts
+                - Yii2
+    api:
+        actor: ApiTester
+        modules:
+            enabled:
+                - REST:
+                    url: /api
+                    depends: Yii2
+                - Yii2 

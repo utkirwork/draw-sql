@@ -16,6 +16,7 @@ export const DiagramsPage: React.FC = () => {
   const { token } = useAuthStore();
   const [diagrams, setDiagrams] = useState<Diagram[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [exportLoading, setExportLoading] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchDiagrams = async () => {
@@ -83,6 +84,44 @@ export const DiagramsPage: React.FC = () => {
     }
   };
 
+  const handleExport = async (diagramId: string, diagramTitle: string) => {
+    setExportLoading(diagramId);
+    
+    try {
+      const response = await fetch(`http://localhost:5000/api/export/yii2/${diagramId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          framework: 'yii2',
+          namespace: 'app'
+        })
+      });
+
+      if (response.ok) {
+        // Create blob and download
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${diagramTitle.replace(/[^a-zA-Z0-9]/g, '_')}_yii2_export.zip`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      } else {
+        alert('Export failed. Please try again.');
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Export failed. Please try again.');
+    } finally {
+      setExportLoading(null);
+    }
+  };
+
   return (
     <div className="p-8">
       <div className="max-w-7xl mx-auto">
@@ -128,6 +167,17 @@ export const DiagramsPage: React.FC = () => {
                     >
                       Edit
                     </Link>
+                    <button
+                      onClick={() => handleExport(diagram.id, diagram.title)}
+                      disabled={exportLoading === diagram.id}
+                      className={`text-sm font-medium transition-colors ${
+                        exportLoading === diagram.id
+                          ? 'text-gray-400 cursor-not-allowed'
+                          : 'text-green-600 hover:text-green-800'
+                      }`}
+                    >
+                      {exportLoading === diagram.id ? 'Exporting...' : 'Export Yii2'}
+                    </button>
                     <button
                       onClick={() => deleteDiagram(diagram.id)}
                       className="text-red-600 hover:text-red-800 text-sm font-medium"
