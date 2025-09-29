@@ -67,7 +67,7 @@ export class FrameworkManager {
             throw new Error(`Diagram validation failed: ${validation.errors.join(', ')}`);
         }
 
-        return await plugin.generateFiles(tables);
+        return await plugin.generateFiles(tables, config);
     }
 
     /**

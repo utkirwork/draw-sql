@@ -1,0 +1,27 @@
+<?php
+
+namespace {{namespace}}\models\relation;
+
+{{#each relatedModels}}
+use {{../namespace}}\models\\{{className}};
+{{/each}}
+
+/**
+ * Trait {{modelName}}RelationTrait
+ * @package {{namespace}}\models\relation
+ */
+trait {{modelName}}RelationTrait
+{
+{{#each relationships}}
+    /**
+     * Gets query for [[{{relatedModelPlural}}]].
+     *
+     * @return \yii\db\ActiveQuery
+     */
+    public function get{{relatedModelPlural}}()
+    {
+        return $this->{{relationMethod}}({{relatedModel}}::class, ['{{foreignKey}}' => '{{localKey}}']);
+    }
+
+{{/each}}
+} 

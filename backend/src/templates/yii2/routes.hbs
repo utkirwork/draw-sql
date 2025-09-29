@@ -1,0 +1,18 @@
+<?php
+
+use yii\rest\UrlRule;
+
+return [
+{{#each controllers}}
+    [
+        'class' => UrlRule::class,
+        'controller' => 'v1/{{../moduleName}}/{{controllerName}}',
+        'pluralize' => {{#if pluralize}}true{{else}}false{{/if}},
+        'extraPatterns' => [
+            'OPTIONS <action>' => 'options',
+            'OPTIONS <action>/<id:>' => 'options'{{#each extraPatterns}},
+            '{{method}} {{pattern}}' => '{{action}}'{{/each}}
+        ]
+    ]{{#unless @last}},{{/unless}}
+{{/each}}
+];

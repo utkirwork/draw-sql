@@ -1,0 +1,842 @@
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.Yii2Plugin = void 0;
+const FrameworkPlugin_1 = require("./FrameworkPlugin");
+const path = __importStar(require("path"));
+class Yii2Plugin extends FrameworkPlugin_1.FrameworkPlugin {
+    constructor(config) {
+        const templatesPath = path.join(__dirname, '../templates/yii2');
+        super('yii2', templatesPath, config);
+    }
+    /**
+     * Generate files from diagram data
+     */
+    async generateFiles(tables, config) {
+        const files = [];
+        // Filter tables based on selected tables
+        let tablesToProcess = tables;
+        if (config?.selectedTables && Array.isArray(config.selectedTables)) {
+            tablesToProcess = tables.filter(table => config.selectedTables.includes(table.name));
+        }
+        // If no tables selected, return empty array
+        if (tablesToProcess.length === 0) {
+            return files;
+        }
+        // Sort tables based on provided order if available
+        if (config?.tableOrder && Array.isArray(config.tableOrder)) {
+            tablesToProcess.sort((a, b) => {
+                const aIndex = config.tableOrder.indexOf(a.name);
+                const bIndex = config.tableOrder.indexOf(b.name);
+                // If both tables are in the order array, sort by their position
+                if (aIndex !== -1 && bIndex !== -1) {
+                    return aIndex - bIndex;
+                }
+                // If only one table is in the order array, prioritize it
+                if (aIndex !== -1)
+                    return -1;
+                if (bIndex !== -1)
+                    return 1;
+                // If neither table is in the order array, maintain original order
+                return 0;
+            });
+        }
+        for (const table of tablesToProcess) {
+            const modelName = this.toPascalCase(table.name);
+            const modelNameLower = this.toCamelCase(table.name);
+            // Generate Migration
+            if (config?.generateMigration !== false) {
+                const migrationData = this.prepareMigrationData(table);
+                const migrationContent = this.templateEngine.render('migration', migrationData);
+                files.push({
+                    filename: this.generateFilename('migration', table.name),
+                    content: migrationContent,
+                    path: 'migrations/'
+                });
+            }
+            // Generate Model
+            if (config?.generateModel !== false) {
+                const modelData = this.prepareModelData(table);
+                const modelContent = this.templateEngine.render('model', modelData);
+                files.push({
+                    filename: `${modelName}.php`,
+                    content: modelContent,
+                    path: 'models/'
+                });
+            }
+            // Generate Query
+            const queryData = this.prepareQueryData(table);
+            const queryContent = this.templateEngine.render('query', queryData);
+            files.push({
+                filename: `${modelName}Query.php`,
+                content: queryContent,
+                path: 'models/query/'
+            });
+            // Generate Getter Trait
+            const getterData = this.prepareGetterData(table);
+            const getterContent = this.templateEngine.render('getter', getterData);
+            files.push({
+                filename: `${modelName}GetterTrait.php`,
+                content: getterContent,
+                path: 'models/getter/'
+            });
+            // Generate Setter Trait
+            const setterData = this.prepareSetterData(table);
+            const setterContent = this.templateEngine.render('setter', setterData);
+            files.push({
+                filename: `${modelName}SetterTrait.php`,
+                content: setterContent,
+                path: 'models/setter/'
+            });
+            // Generate Scope Trait
+            const scopeData = this.prepareScopeData(table);
+            const scopeContent = this.templateEngine.render('scope', scopeData);
+            files.push({
+                filename: `${modelName}ScopeTrait.php`,
+                content: scopeContent,
+                path: 'models/scope/'
+            });
+            // Generate Relation Trait
+            const relationData = this.prepareRelationData(table, tables);
+            const relationContent = this.templateEngine.render('relation', relationData);
+            files.push({
+                filename: `${modelName}RelationTrait.php`,
+                content: relationContent,
+                path: 'models/relation/'
+            });
+            // Generate Service
+            const serviceData = this.prepareServiceData(table);
+            const serviceContent = this.templateEngine.render('service', serviceData);
+            files.push({
+                filename: `${modelName}Service.php`,
+                content: serviceContent,
+                path: 'service/'
+            });
+            // Generate Repository
+            if (config?.generateRepository !== false) {
+                const repositoryData = this.prepareRepositoryData(table);
+                const repositoryContent = this.templateEngine.render('repository', repositoryData);
+                files.push({
+                    filename: `${modelName}Repository.php`,
+                    content: repositoryContent,
+                    path: 'repository/'
+                });
+            }
+            // Generate CreateDTO
+            const createDtoData = this.prepareCreateDtoData(table);
+            const createDtoContent = this.templateEngine.render('create-dto', createDtoData);
+            files.push({
+                filename: `${modelName}CreateDTO.php`,
+                content: createDtoContent,
+                path: `dto/${modelNameLower}/`
+            });
+            // Generate UpdateDTO
+            const updateDtoData = this.prepareUpdateDtoData(table);
+            const updateDtoContent = this.templateEngine.render('update-dto', updateDtoData);
+            files.push({
+                filename: `${modelName}UpdateDTO.php`,
+                content: updateDtoContent,
+                path: `dto/${modelNameLower}/`
+            });
+            // Generate Search Model
+            const searchData = this.prepareSearchData(table);
+            const searchContent = this.templateEngine.render('search', searchData);
+            files.push({
+                filename: `${modelName}Search.php`,
+                content: searchContent,
+                path: 'models/search/'
+            });
+            // Generate Forms
+            const createFormData = this.prepareFormData(table, 'create');
+            const createFormContent = this.templateEngine.render('create-form', createFormData);
+            files.push({
+                filename: `Create${modelName}Form.php`,
+                content: createFormContent,
+                path: `forms/${modelNameLower}/`
+            });
+            const updateFormData = this.prepareFormData(table, 'update');
+            const updateFormContent = this.templateEngine.render('update-form', updateFormData);
+            files.push({
+                filename: `Update${modelName}Form.php`,
+                content: updateFormContent,
+                path: `forms/${modelNameLower}/`
+            });
+            // Generate Actions
+            const createActionData = this.prepareActionData(table, 'create');
+            const createActionContent = this.templateEngine.render('create-action', createActionData);
+            files.push({
+                filename: `Create${modelName}Action.php`,
+                content: createActionContent,
+                path: `actions/${modelNameLower}/`
+            });
+            const updateActionData = this.prepareActionData(table, 'update');
+            const updateActionContent = this.templateEngine.render('update-action', updateActionData);
+            files.push({
+                filename: `Update${modelName}Action.php`,
+                content: updateActionContent,
+                path: `actions/${modelNameLower}/`
+            });
+            const deleteActionData = this.prepareActionData(table, 'delete');
+            const deleteActionContent = this.templateEngine.render('delete-action', deleteActionData);
+            files.push({
+                filename: `Delete${modelName}Action.php`,
+                content: deleteActionContent,
+                path: `actions/${modelNameLower}/`
+            });
+            // Generate Controller
+            const controllerData = this.prepareControllerData(table);
+            const controllerContent = this.templateEngine.render('controller', controllerData);
+            files.push({
+                filename: `${modelName}Controller.php`,
+                content: controllerContent,
+                path: 'modules/api/controllers/'
+            });
+        }
+        // Generate API Module files (only once, not per table)
+        if (tablesToProcess.length > 0) {
+            const moduleName = this.generateModuleName();
+            const moduleClassName = this.generateModuleClassName();
+            const apiModuleData = this.prepareApiModuleData(moduleName, moduleClassName);
+            // Generate API Module class
+            const apiModuleContent = this.templateEngine.render('api-module', apiModuleData);
+            files.push({
+                filename: `${moduleClassName}.php`,
+                content: apiModuleContent,
+                path: 'modules/api/'
+            });
+            // Generate config files
+            const configData = this.prepareConfigData(moduleName);
+            // Generate authenticator.php
+            const authenticatorContent = this.templateEngine.render('authenticator', configData);
+            files.push({
+                filename: 'authenticator.php',
+                content: authenticatorContent,
+                path: 'modules/api/config/'
+            });
+            // Generate authenticator-root.php
+            const authenticatorRootContent = this.templateEngine.render('authenticator-root', configData);
+            files.push({
+                filename: 'authenticator-root.php',
+                content: authenticatorRootContent,
+                path: 'modules/api/config/'
+            });
+            // Generate routes.php
+            const routesData = this.prepareRoutesData(tablesToProcess, moduleName);
+            const routesContent = this.templateEngine.render('routes', routesData);
+            files.push({
+                filename: 'routes.php',
+                content: routesContent,
+                path: 'modules/api/config/'
+            });
+        }
+        return files;
+    }
+    /**
+     * Get supported file types
+     */
+    getSupportedFiles() {
+        return [
+            'migration', 'model', 'query', 'getter', 'setter', 'scope',
+            'relation', 'service', 'repository', 'create-dto', 'update-dto',
+            'search', 'controller', 'create-form', 'update-form', 'create-action',
+            'update-action', 'delete-action', 'api-module', 'authenticator', 'authenticator-root', 'routes'
+        ];
+    }
+    /**
+     * Validate diagram data for this framework
+     */
+    validateDiagram(tables) {
+        const errors = [];
+        for (const table of tables) {
+            // Check if table has primary key
+            const hasPrimaryKey = table.columns.some(col => col.primaryKey);
+            if (!hasPrimaryKey) {
+                errors.push(`Table "${table.name}" must have a primary key`);
+            }
+            // Check for valid column names
+            for (const column of table.columns) {
+                if (!this.isValidColumnName(column.name)) {
+                    errors.push(`Invalid column name "${column.name}" in table "${table.name}"`);
+                }
+            }
+            // Check for valid table name
+            if (!this.isValidTableName(table.name)) {
+                errors.push(`Invalid table name "${table.name}"`);
+            }
+        }
+        return {
+            isValid: errors.length === 0,
+            errors
+        };
+    }
+    /**
+     * Transform column type to Yii2-specific type
+     */
+    transformColumnType(dbType) {
+        const typeMapping = {
+            'varchar': { frameworkType: 'string', phpType: 'string', validationRules: ['string'] },
+            'text': { frameworkType: 'text', phpType: 'string', validationRules: ['string'] },
+            'int': { frameworkType: 'integer', phpType: 'int', validationRules: ['integer'] },
+            'bigint': { frameworkType: 'bigInteger', phpType: 'int', validationRules: ['integer'] },
+            'decimal': { frameworkType: 'decimal', phpType: 'float', validationRules: ['number'] },
+            'float': { frameworkType: 'float', phpType: 'float', validationRules: ['number'] },
+            'double': { frameworkType: 'double', phpType: 'float', validationRules: ['number'] },
+            'boolean': { frameworkType: 'boolean', phpType: 'bool', validationRules: ['boolean'] },
+            'timestamp': { frameworkType: 'timestamp', phpType: 'string', validationRules: ['datetime'] },
+            'datetime': { frameworkType: 'dateTime', phpType: 'string', validationRules: ['datetime'] },
+            'date': { frameworkType: 'date', phpType: 'string', validationRules: ['date'] },
+            'time': { frameworkType: 'time', phpType: 'string', validationRules: ['time'] },
+            'json': { frameworkType: 'json', phpType: 'array', validationRules: ['safe'] },
+            'uuid': { frameworkType: 'string', phpType: 'string', validationRules: ['string'] }
+        };
+        return typeMapping[dbType.toLowerCase()] || { frameworkType: 'string', phpType: 'string', validationRules: ['safe'] };
+    }
+    /**
+     * Prepare migration data
+     */
+    prepareMigrationData(table) {
+        // Specific audit columns that are automatically added by BaseMigrate.getDefaultColumns()
+        // These should not be written separately in migration
+        const defaultAuditColumns = [
+            'created_by', 'updated_by', 'created_at', 'updated_at',
+            'deleted_by', 'deleted_at', 'is_deleted'
+        ];
+        // Filter out only these specific audit columns from diagram data since they're added automatically
+        const filteredColumns = table.columns.filter(col => !defaultAuditColumns.includes(col.name));
+        const columns = filteredColumns.map(col => {
+            const typeInfo = this.transformColumnType(col.type);
+            return {
+                name: col.name,
+                yiiType: typeInfo.frameworkType,
+                nullable: col.nullable,
+                comment: col.comment || '',
+                primaryKey: col.primaryKey
+            };
+        });
+        // Standard audit columns will be added automatically by BaseMigrate.getDefaultColumns()
+        const allColumns = columns;
+        const foreignKeys = table.relationships.map(rel => ({
+            column: rel.fromColumn,
+            refTable: rel.toTable,
+            refColumn: rel.toColumn
+        }));
+        return {
+            namespace: this.config.namespace || 'app',
+            modelName: this.toPascalCase(table.name),
+            modelNameLower: this.toCamelCase(table.name),
+            migrationClassName: `M${this.getTimestamp()}Create${this.toPascalCase(table.name)}Table`,
+            tableName: table.name,
+            schemaName: this.config.schemaName || 'public', // Use schema from config
+            columns: allColumns,
+            foreignKeys,
+            indexes: [] // Can be extended
+        };
+    }
+    /**
+     * Prepare model data
+     */
+    prepareModelData(table) {
+        let columns = table.columns.map(col => {
+            const typeInfo = this.transformColumnType(col.type);
+            return {
+                name: col.name,
+                phpType: typeInfo.phpType || 'string',
+                comment: col.comment || '',
+                required: !col.nullable && !col.primaryKey,
+                isString: typeInfo.phpType === 'string',
+                isInteger: typeInfo.phpType === 'int',
+                isBoolean: typeInfo.phpType === 'bool',
+                isEmail: col.name.toLowerCase().includes('email'),
+                maxLength: col.type.includes('varchar') ? this.extractVarcharLength(col.type) : null,
+                label: this.generateLabel(col.name),
+                primaryKey: col.primaryKey,
+                isTimestamp: ['created_at', 'updated_at', 'deleted_at'].includes(col.name)
+            };
+        });
+        // Only use columns explicitly defined in the diagram
+        // Standard columns like created_at, updated_at, etc. are handled by behaviors
+        return {
+            namespace: this.config.namespace || 'app',
+            modelName: this.toPascalCase(table.name),
+            modelNameLower: this.toCamelCase(table.name),
+            tableName: table.name,
+            schemaName: this.config.schemaName || 'public',
+            columns
+        };
+    }
+    /**
+     * Prepare repository data
+     */
+    prepareRepositoryData(table) {
+        // Find unique columns for special methods
+        const uniqueColumns = table.columns
+            .filter(col => col.name && (col.name.includes('title') || col.name.includes('name') || col.name.includes('email')))
+            .map(col => ({
+            name: col.name,
+            properCase: this.toPascalCase(col.name)
+        }));
+        return {
+            namespace: this.config.namespace || 'app',
+            modelName: this.toPascalCase(table.name),
+            modelNameLower: this.toCamelCase(table.name),
+            uniqueColumns
+        };
+    }
+    /**
+     * Check if column name is valid
+     */
+    isValidColumnName(name) {
+        return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name);
+    }
+    /**
+     * Check if table name is valid
+     */
+    isValidTableName(name) {
+        return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name);
+    }
+    /**
+     * Extract length from varchar type
+     */
+    extractVarcharLength(type) {
+        const match = type.match(/varchar\((\d+)\)/i);
+        return match && match[1] ? parseInt(match[1]) : null;
+    }
+    /**
+     * Generate human-readable label from column name
+     */
+    generateLabel(columnName) {
+        return columnName
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, char => char.toUpperCase());
+    }
+    /**
+     * Convert to PascalCase (override to handle kebab-case)
+     */
+    toPascalCase(str) {
+        // Handle both snake_case and kebab-case
+        return str
+            .replace(/[-_]([a-z])/g, (g) => g[1]?.toUpperCase() || '')
+            .replace(/^([a-z])/, (g) => g.toUpperCase());
+    }
+    /**
+     * Convert to camelCase
+     */
+    toCamelCase(str) {
+        return str.charAt(0).toLowerCase() + this.toPascalCase(str).slice(1);
+    }
+    /**
+     * Convert to plural form (simple implementation)
+     */
+    toPlural(str) {
+        if (str.endsWith('y')) {
+            return str.slice(0, -1) + 'ies';
+        }
+        else if (str.endsWith('s') || str.endsWith('x') || str.endsWith('z') || str.endsWith('ch') || str.endsWith('sh')) {
+            return str + 'es';
+        }
+        else {
+            return str + 's';
+        }
+    }
+    /**
+     * Prepare query data
+     */
+    prepareQueryData(table) {
+        const columns = table.columns.filter(col => !col.primaryKey).map(col => ({
+            name: col.name,
+            phpType: this.transformColumnType(col.type).phpType || 'string'
+        }));
+        return {
+            namespace: this.config.namespace || 'app',
+            modelName: this.toPascalCase(table.name),
+            modelNameLower: this.toCamelCase(table.name),
+            columns
+        };
+    }
+    /**
+     * Prepare getter trait data
+     */
+    prepareGetterData(table) {
+        const columns = table.columns.map(col => {
+            const typeInfo = this.transformColumnType(col.type);
+            return {
+                name: col.name,
+                phpType: typeInfo.phpType || 'string',
+                primaryKey: col.primaryKey,
+                properCase: this.toPascalCase(col.name)
+            };
+        });
+        const hasStatus = table.columns.some(col => col.name === 'status');
+        return {
+            namespace: this.config.namespace || 'app',
+            modelName: this.toPascalCase(table.name),
+            modelNameLower: this.toCamelCase(table.name),
+            columns,
+            hasStatus
+        };
+    }
+    /**
+     * Prepare setter trait data
+     */
+    prepareSetterData(table) {
+        const columns = table.columns.map(col => ({
+            name: col.name,
+            primaryKey: col.primaryKey,
+            properCase: this.toPascalCase(col.name)
+        }));
+        const hasStatus = table.columns.some(col => col.name === 'status');
+        return {
+            namespace: this.config.namespace || 'app',
+            modelName: this.toPascalCase(table.name),
+            modelNameLower: this.toCamelCase(table.name),
+            columns,
+            hasStatus
+        };
+    }
+    /**
+     * Prepare scope trait data
+     */
+    prepareScopeData(table) {
+        // Check if standard behavior columns exist in diagram
+        const hasStatus = table.columns.some(col => col.name === 'status');
+        const hasTimestamps = table.columns.some(col => ['created_at', 'updated_at'].includes(col.name));
+        const hasSoftDelete = table.columns.some(col => ['is_deleted', 'deleted_at'].includes(col.name));
+        const hasBlameableBehavior = table.columns.some(col => ['created_by', 'updated_by'].includes(col.name));
+        // Prepare all columns including default ones
+        let allColumns = [...table.columns];
+        // Add default columns if not present in diagram
+        const defaultColumns = [
+            { id: 'default-id', name: 'id', type: 'uuid', primaryKey: true, nullable: false, comment: 'Primary key' },
+            { id: 'default-created_at', name: 'created_at', type: 'timestamp', primaryKey: false, nullable: true, comment: 'Created timestamp' },
+            { id: 'default-updated_at', name: 'updated_at', type: 'timestamp', primaryKey: false, nullable: true, comment: 'Updated timestamp' },
+            { id: 'default-created_by', name: 'created_by', type: 'uuid', primaryKey: false, nullable: true, comment: 'Created by user ID' },
+            { id: 'default-updated_by', name: 'updated_by', type: 'uuid', primaryKey: false, nullable: true, comment: 'Updated by user ID' },
+            { id: 'default-is_deleted', name: 'is_deleted', type: 'boolean', primaryKey: false, nullable: false, comment: 'Soft delete flag' },
+            { id: 'default-deleted_at', name: 'deleted_at', type: 'timestamp', primaryKey: false, nullable: true, comment: 'Deleted timestamp' },
+            { id: 'default-deleted_by', name: 'deleted_by', type: 'uuid', primaryKey: false, nullable: true, comment: 'Deleted by user ID' }
+        ];
+        // Add missing default columns
+        for (const defaultCol of defaultColumns) {
+            if (!allColumns.some(col => col.name === defaultCol.name)) {
+                allColumns.push(defaultCol);
+            }
+        }
+        // Transform columns for template
+        const columns = allColumns.map(col => {
+            const typeInfo = this.transformColumnType(col.type);
+            return {
+                name: col.name,
+                phpType: typeInfo.phpType || 'string',
+                comment: col.comment || '',
+                required: !col.nullable && !col.primaryKey,
+                isString: typeInfo.phpType === 'string',
+                isInteger: typeInfo.phpType === 'int',
+                isBoolean: typeInfo.phpType === 'bool',
+                isEmail: col.name.toLowerCase().includes('email'),
+                maxLength: col.type.includes('varchar') ? this.extractVarcharLength(col.type) : null,
+                label: this.generateLabel(col.name),
+                primaryKey: col.primaryKey,
+                isTimestamp: ['created_at', 'updated_at', 'deleted_at'].includes(col.name),
+                isUserField: ['created_by', 'updated_by', 'deleted_by'].includes(col.name),
+                isSoftDelete: ['is_deleted', 'deleted_at', 'deleted_by'].includes(col.name)
+            };
+        });
+        return {
+            namespace: this.config.namespace || 'app',
+            modelName: this.toPascalCase(table.name),
+            modelNameLower: this.toCamelCase(table.name),
+            tableName: table.name,
+            columns,
+            hasStatus,
+            hasTimestamps,
+            hasSoftDelete,
+            hasBlameableBehavior
+        };
+    }
+    /**
+     * Prepare relation trait data
+     */
+    prepareRelationData(table, allTables) {
+        const relationships = table.relationships.map(rel => {
+            const relatedTable = allTables.find(t => t.name === rel.toTable);
+            const relatedModelName = relatedTable ? this.toPascalCase(relatedTable.name) : this.toPascalCase(rel.toTable);
+            return {
+                relatedModel: relatedModelName,
+                relatedModelPlural: this.toPlural(relatedModelName),
+                relationMethod: rel.type === 'one-to-many' ? 'hasMany' : 'hasOne',
+                foreignKey: rel.fromColumn,
+                localKey: rel.toColumn
+            };
+        });
+        const relatedModels = [...new Set(relationships.map(rel => rel.relatedModel))].map(className => ({
+            className
+        }));
+        return {
+            namespace: this.config.namespace || 'app',
+            modelName: this.toPascalCase(table.name),
+            modelNameLower: this.toCamelCase(table.name),
+            relationships,
+            relatedModels
+        };
+    }
+    /**
+     * Prepare service data
+     */
+    prepareServiceData(table) {
+        const columns = table.columns.map(col => ({
+            name: col.name,
+            primaryKey: col.primaryKey,
+            isTimestamp: ['created_at', 'updated_at', 'deleted_at', 'created_by', 'updated_by', 'deleted_by'].includes(col.name),
+            properCase: this.toPascalCase(col.name)
+        }));
+        // Check if status column exists in diagram
+        const hasStatus = table.columns.some(col => col.name === 'status');
+        return {
+            namespace: this.config.namespace || 'app',
+            modelName: this.toPascalCase(table.name),
+            modelNameLower: this.toCamelCase(table.name),
+            columns,
+            hasStatus
+        };
+    }
+    /**
+     * Prepare create DTO data
+     */
+    prepareCreateDtoData(table) {
+        let columns = table.columns.map(col => {
+            const typeInfo = this.transformColumnType(col.type);
+            return {
+                name: col.name,
+                required: !col.nullable && !col.primaryKey,
+                isString: typeInfo.phpType === 'string',
+                isInteger: typeInfo.phpType === 'int',
+                isBoolean: typeInfo.phpType === 'bool',
+                isEmail: col.name.toLowerCase().includes('email'),
+                isTimestamp: ['created_at', 'updated_at', 'deleted_at', 'created_by', 'updated_by', 'deleted_by', 'is_deleted'].includes(col.name),
+                maxLength: col.type.includes('varchar') ? this.extractVarcharLength(col.type) : null,
+                label: this.generateLabel(col.name),
+                primaryKey: col.primaryKey
+            };
+        });
+        // Filter out auto-managed columns (timestamps and user tracking columns)
+        columns = columns.filter(col => !col.isTimestamp);
+        // Check if status column exists in diagram
+        const hasStatus = table.columns.some(col => col.name === 'status');
+        return {
+            namespace: this.config.namespace || 'app',
+            modelName: this.toPascalCase(table.name),
+            modelNameLower: this.toCamelCase(table.name),
+            columns,
+            hasStatus
+        };
+    }
+    /**
+     * Prepare update DTO data
+     */
+    prepareUpdateDtoData(table) {
+        return this.prepareCreateDtoData(table); // Same structure for now
+    }
+    /**
+     * Prepare search model data
+     */
+    prepareSearchData(table) {
+        const integerColumns = table.columns
+            .filter(col => this.transformColumnType(col.type).phpType === 'int')
+            .map(col => ({ name: col.name }));
+        const booleanColumns = table.columns
+            .filter(col => this.transformColumnType(col.type).phpType === 'bool')
+            .map(col => ({ name: col.name }));
+        const stringColumns = table.columns
+            .filter(col => this.transformColumnType(col.type).phpType === 'string')
+            .map(col => ({ name: col.name }));
+        return {
+            namespace: this.config.namespace || 'app',
+            modelName: this.toPascalCase(table.name),
+            modelNameLower: this.toCamelCase(table.name),
+            integerColumns,
+            booleanColumns,
+            stringColumns
+        };
+    }
+    /**
+     * Generate module name from namespace or config
+     */
+    generateModuleName() {
+        const namespace = this.config.namespace || 'app';
+        // Extract module name from namespace (e.g., 'xbsoft\collateralMonitoring' -> 'collateral-monitoring')
+        const parts = namespace.split('\\');
+        const modulePart = parts[parts.length - 1] || 'app';
+        return this.toKebabCase(modulePart);
+    }
+    /**
+     * Generate module class name from namespace or config
+     */
+    generateModuleClassName() {
+        const namespace = this.config.namespace || 'app';
+        // Extract module name from namespace (e.g., 'xbsoft\collateralMonitoring' -> 'CollateralMonitoring')
+        const parts = namespace.split('\\');
+        const modulePart = parts[parts.length - 1] || 'app';
+        return this.toPascalCase(modulePart);
+    }
+    /**
+     * Convert string to kebab-case
+     */
+    toKebabCase(str) {
+        return str
+            .replace(/([a-z])([A-Z])/g, '$1-$2')
+            .toLowerCase();
+    }
+    /**
+     * Prepare API module data
+     */
+    prepareApiModuleData(moduleName, moduleClassName) {
+        const namespace = this.config.namespace || 'app';
+        const namespacePath = namespace.replace(/\\/g, '/');
+        return {
+            namespace,
+            moduleName,
+            moduleClassName,
+            namespacePath
+        };
+    }
+    /**
+     * Prepare config data
+     */
+    prepareConfigData(moduleName) {
+        const namespace = this.config.namespace || 'app';
+        const moduleClassName = this.generateModuleClassName();
+        return {
+            namespace,
+            moduleName,
+            moduleClassName
+        };
+    }
+    /**
+     * Prepare routes data
+     */
+    prepareRoutesData(tables, moduleName) {
+        const controllers = tables.map(table => {
+            const modelName = this.toPascalCase(table.name);
+            const controllerName = this.toKebabCase(table.name);
+            // Determine if controller should be pluralized based on common patterns
+            const shouldPluralize = this.shouldPluralize(table.name);
+            // Add some common extra patterns for each controller
+            const extraPatterns = [
+                { method: 'GET', pattern: 'search', action: 'search' },
+                { method: 'GET', pattern: 'export', action: 'export' }
+            ];
+            return {
+                modelName,
+                controllerName,
+                pluralize: shouldPluralize,
+                extraPatterns
+            };
+        });
+        return {
+            moduleName,
+            controllers
+        };
+    }
+    /**
+     * Determine if a table name should be pluralized in routes
+     */
+    shouldPluralize(tableName) {
+        // Common patterns that should be pluralized
+        const pluralPatterns = ['user', 'category', 'product', 'order', 'item', 'comment', 'post'];
+        return pluralPatterns.some(pattern => tableName.toLowerCase().includes(pattern));
+    }
+    /**
+     * Prepare controller data
+     */
+    prepareControllerData(table) {
+        return {
+            namespace: this.config.namespace || 'app',
+            modelName: this.toPascalCase(table.name),
+            modelNameLower: this.toCamelCase(table.name)
+        };
+    }
+    /**
+     * Prepare form data
+     */
+    prepareFormData(table, type) {
+        const modelName = this.toPascalCase(table.name);
+        const modelNameLower = this.toCamelCase(table.name);
+        // Standard columns that should be excluded from forms (auto-managed by behaviors)
+        const standardColumns = ['created_at', 'updated_at', 'deleted_at', 'created_by', 'updated_by', 'deleted_by', 'is_deleted'];
+        const columns = table.columns
+            .filter(col => !standardColumns.includes(col.name)) // Filter out standard columns
+            .map(col => {
+            const transformed = this.transformColumnType(col.type);
+            return {
+                name: col.name,
+                label: this.toPascalCase(col.name),
+                properCase: this.toPascalCase(col.name),
+                isString: transformed.phpType === 'string',
+                isInteger: transformed.phpType === 'int',
+                isBoolean: transformed.phpType === 'bool',
+                isEmail: col.name.toLowerCase().includes('email'),
+                maxLength: undefined,
+                required: !col.nullable && !col.primaryKey
+            };
+        });
+        const requiredFields = type === 'create'
+            ? columns.filter(col => col.required)
+            : [];
+        return {
+            namespace: this.config.namespace || 'app',
+            modelName,
+            modelNameLower,
+            columns,
+            requiredFields
+        };
+    }
+    /**
+     * Prepare action data
+     */
+    prepareActionData(table, type) {
+        const modelName = this.toPascalCase(table.name);
+        const modelNameLower = this.toCamelCase(table.name);
+        const moduleName = this.generateModuleName();
+        return {
+            namespace: this.config.namespace || 'app',
+            modelName,
+            modelNameLower,
+            moduleName,
+            type
+        };
+    }
+}
+exports.Yii2Plugin = Yii2Plugin;
+//# sourceMappingURL=Yii2Plugin.js.map

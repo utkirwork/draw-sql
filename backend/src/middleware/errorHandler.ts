@@ -16,7 +16,7 @@ export class CustomError extends Error implements AppError {
     super(message);
     this.statusCode = statusCode;
     this.isOperational = true;
-    this.code = code;
+    this.code = code || 'UNKNOWN_ERROR';
 
     Error.captureStackTrace(this, this.constructor);
   }

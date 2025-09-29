@@ -1,0 +1,82 @@
+<?php
+
+namespace {{namespace}}\models\search;
+
+use yii\base\Model;
+use yii\data\ActiveDataProvider;
+use {{namespace}}\models\\{{modelName}};
+
+/**
+* {{modelName}}Search represents the model behind the search form of `{{namespace}}\models\\{{modelName}}`.
+*/
+class {{modelName}}Search extends {{modelName}}{
+    /**
+    * {@inheritdoc}
+    */
+    public function rules()
+    {
+        return [
+            {{#each integerColumns}}
+            [['{{name}}'], 'integer'],
+            {{/each}}
+            {{#each booleanColumns}}
+            [['{{name}}'], 'boolean'],
+            {{/each}}
+            {{#each stringColumns}}
+            [['{{name}}'], 'safe'],
+            {{/each}}
+        ];
+    }
+
+    /**
+    * {@inheritdoc}
+    */
+    public function scenarios()
+    {
+        // bypass scenarios() implementation in the parent class
+        return Model::scenarios();
+    }
+
+    /**
+    * Creates data provider instance with search query applied
+    *
+    * @param array $params
+    *
+    * @return ActiveDataProvider
+    */
+    public function search($params)
+    {
+        $query = {{modelName}}::find();
+
+        // add conditions that should always apply here
+
+        $dataProvider = new ActiveDataProvider([
+            'query' => $query,
+        ]);
+
+        $this->load($params);
+
+        if (!$this->validate()) {
+            // uncomment the following line if you do not want to return any records when validation fails
+            // $query->where('0=1');
+            return $dataProvider;
+        }
+
+        // grid filtering conditions
+        {{#each integerColumns}}
+        $query->andFilterWhere([
+            '{{name}}' => $this->{{name}},
+        ]);
+        {{/each}}
+        {{#each booleanColumns}}
+        $query->andFilterWhere([
+            '{{name}}' => $this->{{name}},
+        ]);
+        {{/each}}
+        {{#each stringColumns}}
+        $query->andFilterWhere(['ilike', '{{name}}', $this->{{name}}]);
+        {{/each}}
+
+        return $dataProvider;
+    }
+}

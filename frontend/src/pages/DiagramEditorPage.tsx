@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, Edit2, ArrowLeft, Home, Grid3X3, Download } from 'lucide-react';
+import { Plus, Trash2, Edit2, ArrowLeft, Home, Grid3X3, Download, ChevronUp, ChevronDown, ChevronDown as ChevronDownIcon, ChevronRight } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 
@@ -20,6 +20,7 @@ interface Table {
   x: number;
   y: number;
   columns: Column[];
+  isCollapsed?: boolean;
 }
 
 interface Relationship {
@@ -62,16 +63,96 @@ export const DiagramEditorPage: React.FC = () => {
   // Export states
   const [isExporting, setIsExporting] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [exportType, setExportType] = useState<'framework' | 'sql' | 'pdf'>('framework');
+  
   const [exportConfig, setExportConfig] = useState({
     framework: 'yii2',
-    namespace: 'app\\models',
+    namespace: 'xbsoft\\untitled_diagram',
+    schemaName: 'public',
+    databaseType: 'postgresql',
     generateMigration: true,
     generateModel: true,
-    generateRepository: true
+    generateRepository: true,
+    selectedTables: [] as string[],
+    skipExistingEntities: true,
+    documentTitle: ''
   });
+
+  // Debug: Log export type changes
+  useEffect(() => {
+    console.log('Export type changed to:', exportType);
+  }, [exportType]);
+
+  // Initialize document title when export modal opens
+  useEffect(() => {
+    if (showExportModal && (!exportConfig.documentTitle || exportConfig.documentTitle === '')) {
+      const newTitle = diagramName || 'Database Schema Documentation';
+      setExportConfig(prev => ({
+        ...prev,
+        documentTitle: newTitle
+      }));
+    }
+  }, [showExportModal, diagramName, exportConfig.documentTitle]);
+  const [orderedTables, setOrderedTables] = useState<Table[]>([]);
+  const [draggedTableId, setDraggedTableId] = useState<string | null>(null);
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const { token, isAuthenticated } = useAuthStore();
+
+  // Function to generate namespace from diagram name
+  const generateNamespace = (diagramName: string) => {
+    // First, clean the name but keep the original case
+    let cleanName = diagramName
+      .replace(/[^a-zA-Z0-9\s]/g, '') // Remove special characters but keep letters and numbers
+      .replace(/\s+/g, '_') // Replace spaces with underscores
+      .replace(/^[^a-zA-Z]/, 'd'); // Ensure it starts with a letter
+    
+    // Make only the first letter lowercase
+    if (cleanName.length > 0) {
+      cleanName = cleanName.charAt(0).toLowerCase() + cleanName.slice(1);
+    }
+    
+    return `xbsoft\\${cleanName}`;
+  };
+
+  // Update namespace when diagram name changes
+  useEffect(() => {
+    console.log('Diagram name changed to:', diagramName);
+    const newNamespace = generateNamespace(diagramName);
+    console.log('Generated namespace:', newNamespace);
+    setExportConfig(prev => ({
+      ...prev,
+      namespace: newNamespace
+    }));
+  }, [diagramName]);
+
+  // Initialize selected tables and ordered tables when modal opens
+  useEffect(() => {
+    if (showExportModal && tables.length > 0) {
+      console.log('Export modal opened, diagram name:', diagramName);
+      console.log('Current export config namespace:', exportConfig.namespace);
+      console.log('Current export type:', exportType);
+      
+      // Reset export type to framework when modal opens
+      setExportType('framework');
+      
+      // If diagram name is still undefined, try to fetch it
+      if (!diagramName || diagramName === 'Untitled Diagram') {
+        console.log('Diagram name is undefined, attempting to fetch diagram data...');
+        if (diagramId && token) {
+          loadDiagram(diagramId);
+        }
+      }
+      
+      const allTableNames = tables.map(table => table.name);
+      setExportConfig(prev => ({
+        ...prev,
+        selectedTables: allTableNames
+      }));
+      // Initialize ordered tables with all tables
+      setOrderedTables([...tables]);
+    }
+  }, [showExportModal, tables]);
 
   // Load diagram data
   const loadDiagram = async (diagramId: string) => {
@@ -88,8 +169,15 @@ export const DiagramEditorPage: React.FC = () => {
         const result = await response.json();
         const diagram = result.data;
         
-        // Set the diagram data
-        setDiagramName(diagram.title || diagram.name || 'Untitled Diagram');
+        // Debug: Log the diagram data to see the structure
+        console.log('Diagram data:', diagram);
+        console.log('Diagram title:', diagram.title);
+        console.log('Diagram name:', diagram.name);
+        
+        // Set the diagram data - try multiple possible fields
+        const diagramTitle = diagram.title || diagram.name || diagram.diagram_name || 'Untitled Diagram';
+        console.log('Final diagram name:', diagramTitle);
+        setDiagramName(diagramTitle);
         setDiagramId(diagram.id);
         
         // Parse the canvas data
@@ -177,6 +265,71 @@ export const DiagramEditorPage: React.FC = () => {
             isPrimaryKey: true,
             isForeignKey: false,
             isNullable: false
+          },
+          // Default audit columns
+          {
+            id: `${newTableName}-created_by`,
+            name: 'created_by',
+            type: 'INTEGER',
+            isPrimaryKey: false,
+            isForeignKey: false,
+            isNullable: true
+          },
+          {
+            id: `${newTableName}-updated_by`,
+            name: 'updated_by',
+            type: 'INTEGER',
+            isPrimaryKey: false,
+            isForeignKey: false,
+            isNullable: true
+          },
+          {
+            id: `${newTableName}-created_at`,
+            name: 'created_at',
+            type: 'INTEGER',
+            isPrimaryKey: false,
+            isForeignKey: false,
+            isNullable: true
+          },
+          {
+            id: `${newTableName}-updated_at`,
+            name: 'updated_at',
+            type: 'INTEGER',
+            isPrimaryKey: false,
+            isForeignKey: false,
+            isNullable: true
+          },
+          {
+            id: `${newTableName}-deleted_by`,
+            name: 'deleted_by',
+            type: 'INTEGER',
+            isPrimaryKey: false,
+            isForeignKey: false,
+            isNullable: true
+          },
+          {
+            id: `${newTableName}-deleted_at`,
+            name: 'deleted_at',
+            type: 'INTEGER',
+            isPrimaryKey: false,
+            isForeignKey: false,
+            isNullable: true
+          },
+          {
+            id: `${newTableName}-is_deleted`,
+            name: 'is_deleted',
+            type: 'BOOLEAN',
+            isPrimaryKey: false,
+            isForeignKey: false,
+            isNullable: true
+          },
+          {
+            id: `${newTableName}-status`,
+            name: 'status',
+            type: 'INTEGER',
+            isPrimaryKey: false,
+            isForeignKey: false,
+            isNullable: true
           }
         ]
       };
@@ -231,6 +384,42 @@ export const DiagramEditorPage: React.FC = () => {
     setTables(tables.map(table => 
       table.id === tableId 
         ? { ...table, columns: table.columns.filter(column => column.id !== columnId) }
+        : table
+    ));
+  };
+
+  const moveColumnUp = (tableId: string, columnId: string) => {
+    setTables(tables.map(table => {
+      if (table.id !== tableId) return table;
+      
+      const columnIndex = table.columns.findIndex(col => col.id === columnId);
+      if (columnIndex <= 0) return table; // Can't move up if it's the first column
+      
+      const newColumns = [...table.columns];
+      [newColumns[columnIndex - 1], newColumns[columnIndex]] = [newColumns[columnIndex], newColumns[columnIndex - 1]];
+      
+      return { ...table, columns: newColumns };
+    }));
+  };
+
+  const moveColumnDown = (tableId: string, columnId: string) => {
+    setTables(tables.map(table => {
+      if (table.id !== tableId) return table;
+      
+      const columnIndex = table.columns.findIndex(col => col.id === columnId);
+      if (columnIndex >= table.columns.length - 1) return table; // Can't move down if it's the last column
+      
+      const newColumns = [...table.columns];
+      [newColumns[columnIndex], newColumns[columnIndex + 1]] = [newColumns[columnIndex + 1], newColumns[columnIndex]];
+      
+      return { ...table, columns: newColumns };
+    }));
+  };
+
+  const toggleTableCollapse = (tableId: string) => {
+    setTables(tables.map(table => 
+      table.id === tableId 
+        ? { ...table, isCollapsed: !table.isCollapsed }
         : table
     ));
   };
@@ -366,11 +555,28 @@ export const DiagramEditorPage: React.FC = () => {
     const headerHeight = 50; // Height of table header
     const rowHeight = 32; // Height of each column row
     const padding = 16; // Padding inside table
+    const tableWidth = 300; // Estimated actual table width (accounting for content width)
+    
+    if (table.isCollapsed) {
+      // For collapsed tables, connect to the center of the table border
+      const centerY = table.y + (headerHeight / 2);
+      
+      return {
+        x: Math.round(table.x + tableWidth + 12), // Right edge + more margin to clear table
+        y: Math.round(centerY), // Vertical center of collapsed table
+        leftX: Math.round(table.x - 12), // Left edge - more margin to clear table
+        leftY: Math.round(centerY), // Same position for left side
+      };
+    }
+    
+    // For expanded tables, connect to the specific column row at the table border
+    const columnY = table.y + headerHeight + padding + (columnIndex * rowHeight) + (rowHeight / 2);
     
     return {
-      x: Math.round(table.x + 280), // Right edge of table for outgoing connections
-      y: Math.round(table.y + headerHeight + padding + (columnIndex * rowHeight) + (rowHeight / 2)),
-      leftX: Math.round(table.x), // Left edge for incoming connections
+      x: Math.round(table.x + tableWidth + 12), // Right edge + more margin to clear table
+      y: Math.round(columnY), // Specific column row position
+      leftX: Math.round(table.x - 12), // Left edge - more margin to clear table
+      leftY: Math.round(columnY), // Same column row position for left side
     };
   };
 
@@ -480,6 +686,70 @@ export const DiagramEditorPage: React.FC = () => {
     }
   };
 
+  // Table selection functions
+  const handleTableSelection = (tableName: string, isSelected: boolean) => {
+    setExportConfig(prev => ({
+      ...prev,
+      selectedTables: isSelected 
+        ? [...prev.selectedTables, tableName]
+        : prev.selectedTables.filter(name => name !== tableName)
+    }));
+  };
+
+  const handleSelectAllTables = () => {
+    const allTableNames = tables.map(table => table.name);
+    setExportConfig(prev => ({
+      ...prev,
+      selectedTables: allTableNames
+    }));
+  };
+
+  const handleDeselectAllTables = () => {
+    setExportConfig(prev => ({
+      ...prev,
+      selectedTables: []
+    }));
+  };
+
+  // Drag and drop handlers for table ordering
+  const handleDragStart = (e: React.DragEvent, tableId: string) => {
+    setDraggedTableId(tableId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: React.DragEvent, targetTableId: string) => {
+    e.preventDefault();
+    
+    if (!draggedTableId || draggedTableId === targetTableId) {
+      setDraggedTableId(null);
+      return;
+    }
+
+    const draggedIndex = orderedTables.findIndex(table => table.id === draggedTableId);
+    const targetIndex = orderedTables.findIndex(table => table.id === targetTableId);
+    
+    if (draggedIndex === -1 || targetIndex === -1) {
+      setDraggedTableId(null);
+      return;
+    }
+
+    const newOrderedTables = [...orderedTables];
+    const [draggedTable] = newOrderedTables.splice(draggedIndex, 1);
+    newOrderedTables.splice(targetIndex, 0, draggedTable);
+    
+    setOrderedTables(newOrderedTables);
+    setDraggedTableId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedTableId(null);
+  };
+
   // Export functions
   const exportDiagram = async () => {
     if (!diagramId || !token) {
@@ -487,26 +757,118 @@ export const DiagramEditorPage: React.FC = () => {
       return;
     }
 
+    console.log('Exporting diagram with type:', exportType);
+    console.log('Diagram ID:', diagramId);
+    console.log('Export config:', exportConfig);
+    console.log('Current exportType state:', exportType);
+
+    // Safety check - ensure export type is valid
+    if (!['framework', 'sql', 'pdf'].includes(exportType)) {
+      console.error('Invalid export type:', exportType);
+      alert('Invalid export type. Please try again.');
+      return;
+    }
+
+    // Additional safety check - ensure we're not using the old framework endpoint for SQL/PDF
+    if (exportType === 'sql' || exportType === 'pdf') {
+      console.log('Using new export endpoints for:', exportType);
+    } else {
+      console.log('Using framework export endpoint for:', exportType);
+    }
+
+    // Double-check export type before proceeding
+    console.log('Final export type check:', exportType);
+
     setIsExporting(true);
     try {
-      const response = await fetch(`/api/export/${exportConfig.framework}/${diagramId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
+      let response: Response;
+      let filename: string;
+      
+      // Force explicit check for export types
+      console.log('About to check export type. Current value:', exportType);
+      console.log('Type of exportType:', typeof exportType);
+      console.log('exportType === "sql":', exportType === 'sql');
+      console.log('exportType === "pdf":', exportType === 'pdf');
+      
+      if (exportType === 'sql') {
+        const url = `/api/export/sql/${diagramId}`;
+        console.log('✅ SQL EXPORT: Making SQL export request to:', url);
+        console.log('✅ SQL EXPORT: Request body:', {
+          databaseType: exportConfig.databaseType,
+          schemaName: exportConfig.schemaName
+        });
+        response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            databaseType: exportConfig.databaseType,
+            schemaName: exportConfig.schemaName
+          })
+        });
+        filename = `${diagramName}_schema_${Date.now()}.sql`;
+      } else if (exportType === 'pdf') {
+        const url = `/api/export/pdf/${diagramId}`;
+        console.log('✅ PDF EXPORT: Making PDF export request to:', url);
+        console.log('✅ PDF EXPORT: Request body:', {
+          databaseType: exportConfig.databaseType,
+          schemaName: exportConfig.schemaName,
+          documentTitle: exportConfig.documentTitle
+        });
+        response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            databaseType: exportConfig.databaseType,
+            schemaName: exportConfig.schemaName,
+            documentTitle: exportConfig.documentTitle
+          })
+        });
+        filename = `${diagramName}_documentation_${Date.now()}.pdf`;
+      } else {
+        // Framework export
+        console.log('🚨 FALLBACK TO FRAMEWORK EXPORT - This might be wrong!');
+        console.log('🚨 Export type was:', exportType);
+        const url = `/api/export/${exportConfig.framework}/${diagramId}`;
+        console.log('🔧 FRAMEWORK EXPORT: Making Framework export request to:', url);
+        console.log('🔧 FRAMEWORK EXPORT: Request body:', {
           namespace: exportConfig.namespace,
+          schemaName: exportConfig.schemaName,
           generateMigration: exportConfig.generateMigration,
           generateModel: exportConfig.generateModel,
-          generateRepository: exportConfig.generateRepository
-        })
-      });
+          generateRepository: exportConfig.generateRepository,
+          selectedTables: exportConfig.selectedTables,
+          skipExistingEntities: exportConfig.skipExistingEntities,
+          tableOrder: orderedTables.map(table => table.name)
+        });
+        response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            namespace: exportConfig.namespace,
+            schemaName: exportConfig.schemaName,
+            generateMigration: exportConfig.generateMigration,
+            generateModel: exportConfig.generateModel,
+            generateRepository: exportConfig.generateRepository,
+            selectedTables: exportConfig.selectedTables,
+            skipExistingEntities: exportConfig.skipExistingEntities,
+            tableOrder: orderedTables.map(table => table.name)
+          })
+        });
+        filename = `${diagramName}_generated_codes_${Date.now()}.zip`;
+      }
 
       if (response.ok) {
-        // Get the filename from the response header or generate one
+        // Get the filename from the response header or use generated one
         const contentDisposition = response.headers.get('content-disposition');
-        let filename = `${diagramName}_${exportConfig.framework}_${Date.now()}.zip`;
         
         if (contentDisposition) {
           const filenameMatch = contentDisposition.match(/filename="(.+)"/);
@@ -718,68 +1080,142 @@ export const DiagramEditorPage: React.FC = () => {
 
             {/* SVG for relationship lines */}
             <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" style={{ minWidth: '1200px', minHeight: '800px' }}>
-              {/* Render relationship lines */}
+              {/* Render relationship lines - show for all tables */}
               {relationships.map((rel) => {
+                // Get table states first
+                const fromTable = tables.find(t => t.name === rel.fromTable);
+                const toTable = tables.find(t => t.name === rel.toTable);
+                
                 const fromPos = getColumnPosition(rel.fromTable, rel.fromColumn);
                 const toPos = getColumnPosition(rel.toTable, rel.toColumn);
                 
                 if (!fromPos || !toPos) return null;
 
-                // Create curved path connecting the tables
+                const fromCollapsed = fromTable?.isCollapsed || false;
+                const toCollapsed = toTable?.isCollapsed || false;
+
+                // Create smooth curved path connecting the tables
                 const startX = fromPos.x;
                 const startY = fromPos.y;
                 const endX = toPos.leftX;
-                const endY = toPos.y;
+                const endY = toPos.leftY || toPos.y;
                 
+                // Calculate control points for smooth curves
+                const dx = endX - startX;
+                const dy = endY - startY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const controlOffset = Math.min(distance * 0.3, 100); // Dynamic curve based on distance
+                
+                const control1X = startX + controlOffset;
+                const control1Y = startY;
+                const control2X = endX - controlOffset;
+                const control2Y = endY;
+                
+                const path = `M ${startX} ${startY} C ${control1X} ${control1Y} ${control2X} ${control2Y} ${endX} ${endY}`;
+                
+                // Calculate midX for delete button positioning
                 const midX = (startX + endX) / 2;
-                const path = `M ${startX} ${startY} Q ${midX} ${startY} ${midX} ${(startY + endY) / 2} Q ${midX} ${endY} ${endX} ${endY}`;
 
                 return (
                   <g key={`${rel.fromTable}-${rel.toTable}-${rel.fromColumn}-${rel.toColumn}`}>
-                    {/* Connection line */}
+                    {/* Connection line with gradient */}
+                    <defs>
+                      <linearGradient id={`gradient-${rel.id}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.8"/>
+                        <stop offset="50%" stopColor="#8b5cf6" stopOpacity="0.6"/>
+                        <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.8"/>
+                      </linearGradient>
+                    </defs>
                     <path
                       d={path}
-                      stroke="#3b82f6"
-                      strokeWidth="2"
+                      stroke={`url(#gradient-${rel.id})`}
+                      strokeWidth="3"
                       fill="none"
-                      strokeDasharray="0"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      filter="drop-shadow(0 2px 4px rgba(59, 130, 246, 0.3))"
                     />
                     
-                    {/* Start circle */}
+                    {/* Start circle with better styling */}
                     <circle
                       cx={startX}
                       cy={startY}
-                      r="4"
-                      fill="#3b82f6"
+                      r={fromCollapsed ? "4" : "5"}
+                      fill={fromCollapsed ? "#e5e7eb" : "#ffffff"}
+                      stroke={fromCollapsed ? "#9ca3af" : "#3b82f6"}
+                      strokeWidth={fromCollapsed ? "2" : "2"}
+                      filter="drop-shadow(0 2px 4px rgba(59, 130, 246, 0.4))"
                     />
                     
-                    {/* End circle */}
+                    {/* Collapsed table indicator - smaller and positioned better */}
+                    {fromCollapsed && (
+                      <text
+                        x={startX}
+                        y={startY + 1}
+                        textAnchor="middle"
+                        fontSize="6"
+                        fontWeight="bold"
+                        fill="#9ca3af"
+                        className="pointer-events-none"
+                      >
+                        ⋯
+                      </text>
+                    )}
+                    
+                    {/* End circle with arrow indicator */}
                     <circle
                       cx={endX}
                       cy={endY}
-                      r="4"
-                      fill="#3b82f6"
+                      r={toCollapsed ? "4" : "5"}
+                      fill={toCollapsed ? "#e5e7eb" : "#ffffff"}
+                      stroke={toCollapsed ? "#9ca3af" : "#3b82f6"}
+                      strokeWidth={toCollapsed ? "2" : "2"}
+                      filter="drop-shadow(0 2px 4px rgba(59, 130, 246, 0.4))"
                     />
                     
-                    {/* Delete button */}
+                    {/* Collapsed table indicator - smaller and positioned better */}
+                    {toCollapsed && (
+                      <text
+                        x={endX}
+                        y={endY + 1}
+                        textAnchor="middle"
+                        fontSize="6"
+                        fontWeight="bold"
+                        fill="#9ca3af"
+                        className="pointer-events-none"
+                      >
+                        ⋯
+                      </text>
+                    )}
+                    
+                    {/* Arrow head at the end */}
+                    <polygon
+                      points={`${endX-8},${endY-3} ${endX-8},${endY+3} ${endX-2},${endY}`}
+                      fill="#3b82f6"
+                      stroke="#ffffff"
+                      strokeWidth="1"
+                    />
+                    
+                    {/* Delete button with better styling */}
                     <circle
                       cx={midX}
                       cy={(startY + endY) / 2}
-                      r="8"
-                      fill="white"
+                      r="10"
+                      fill="#ffffff"
                       stroke="#ef4444"
                       strokeWidth="2"
-                      className="cursor-pointer"
+                      className="cursor-pointer hover:fill-red-50"
                       onClick={() => deleteRelationship(rel.id)}
+                      filter="drop-shadow(0 2px 4px rgba(239, 68, 68, 0.3))"
                     />
                     <text
                       x={midX}
-                      y={(startY + endY) / 2 + 1}
+                      y={(startY + endY) / 2 + 2}
                       textAnchor="middle"
-                      fontSize="10"
+                      fontSize="12"
+                      fontWeight="bold"
                       fill="#ef4444"
-                      className="cursor-pointer select-none"
-                      onClick={() => deleteRelationship(rel.id)}
+                      className="cursor-pointer select-none pointer-events-none"
                     >
                       ×
                     </text>
@@ -798,112 +1234,154 @@ export const DiagramEditorPage: React.FC = () => {
                 style={{
                   left: Math.round(table.x),
                   top: Math.round(table.y),
-                  cursor: isDragging === table.id ? 'grabbing' : 'grab'
+                  cursor: isDragging === table.id ? 'grabbing' : 'grab',
+                  zIndex: table.isCollapsed ? 20 : 30
                 }}
                 onMouseDown={(e) => handleMouseDown(e, table.id)}
               >
                 {/* Table Header */}
                 <div className="bg-blue-600 text-white px-4 py-2 rounded-t-lg flex items-center justify-between">
-                  <h3 className="font-semibold">{table.name}</h3>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleTableCollapse(table.id);
+                      }}
+                      className="text-white hover:bg-blue-700 p-1 rounded"
+                      title={table.isCollapsed ? "Expand table" : "Collapse table"}
+                    >
+                      {table.isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDownIcon className="w-4 h-4" />}
+                    </button>
+                    <h3 className="font-semibold">{table.name}</h3>
+                    {table.isCollapsed && (
+                      <span className="text-xs text-blue-200">({table.columns.length} columns)</span>
+                    )}
+                  </div>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       addColumn(table.id);
                     }}
                     className="text-white hover:bg-blue-700 p-1 rounded"
+                    title="Add Column"
                   >
                     <Plus className="w-4 h-4" />
                   </button>
                 </div>
 
                 {/* Table Columns */}
-                <div className="p-0">
-                  {table.columns.map((column, index) => (
-                    <div 
-                      key={column.id} 
-                      className={`px-4 py-2 border-b border-gray-100 last:border-b-0 flex items-center justify-between hover:bg-gray-50 ${
-                        column.isPrimaryKey ? 'bg-yellow-50' : ''
-                      }`}
-                    >
-                      <div className="flex items-center space-x-2 flex-1">
-                        <span className={`font-medium ${column.isPrimaryKey ? 'text-yellow-700' : 'text-gray-700'}`}>
-                          {column.name}
-                        </span>
-                        <span className="text-xs text-gray-500 uppercase">
-                          {column.type}
-                        </span>
-                        {column.isPrimaryKey && (
-                          <span className="text-xs bg-yellow-200 text-yellow-800 px-1 rounded">PK</span>
-                        )}
-                        {!column.isNullable && (
-                          <span className="text-xs text-red-600">NOT NULL</span>
-                        )}
-                        {column.isForeignKey && (
-                          <span className="text-xs bg-green-200 text-green-800 px-1 rounded">
-                            FK → {column.referencedTable}.{column.referencedColumn}
+                {!table.isCollapsed && (
+                  <div className="p-0">
+                    {table.columns.map((column, index) => (
+                      <div 
+                        key={column.id} 
+                        className={`px-4 py-2 border-b border-gray-100 last:border-b-0 flex items-center justify-between hover:bg-gray-50 ${
+                          column.isPrimaryKey ? 'bg-yellow-50' : ''
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2 flex-1">
+                          <span className={`font-medium ${column.isPrimaryKey ? 'text-yellow-700' : 'text-gray-700'}`}>
+                            {column.name}
                           </span>
-                        )}
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingColumn({ tableId: table.id, columnId: column.id });
-                          }}
-                          className="text-gray-400 hover:text-blue-600 p-1"
-                          title="Edit Column"
-                        >
-                          <Edit2 className="w-3 h-3" />
-                        </button>
-                        {column.isForeignKey ? (
+                          <span className="text-xs text-gray-500 uppercase">
+                            {column.type}
+                          </span>
+                          {column.isPrimaryKey && (
+                            <span className="text-xs bg-yellow-200 text-yellow-800 px-1 rounded">PK</span>
+                          )}
+                          {!column.isNullable && (
+                            <span className="text-xs text-red-600">NOT NULL</span>
+                          )}
+                          {column.isForeignKey && (
+                            <span className="text-xs bg-green-200 text-green-800 px-1 rounded">
+                              FK → {column.referencedTable}.{column.referencedColumn}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-1">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              removeForeignKey(table.id, column.id);
-                            }}
-                            className="text-gray-400 hover:text-orange-600 p-1"
-                            title="Remove Foreign Key"
-                          >
-                            🔓
-                          </button>
-                        ) : (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              startForeignKeyCreation(table.id, column.id);
-                            }}
-                            className="text-gray-400 hover:text-green-600 p-1"
-                            title="Create Foreign Key"
-                          >
-                            🔗
-                          </button>
-                        )}
-                        {column.isForeignKey && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              startForeignKeyCreation(table.id, column.id);
+                              setEditingColumn({ tableId: table.id, columnId: column.id });
                             }}
                             className="text-gray-400 hover:text-blue-600 p-1"
-                            title="Edit Foreign Key"
+                            title="Edit Column"
                           >
-                            ✏️
+                            <Edit2 className="w-3 h-3" />
                           </button>
-                        )}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteColumn(table.id, column.id);
-                          }}
-                          className="text-gray-400 hover:text-red-600 p-1"
-                          title="Delete Column"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
+                          {column.isForeignKey ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeForeignKey(table.id, column.id);
+                              }}
+                              className="text-gray-400 hover:text-orange-600 p-1"
+                              title="Remove Foreign Key"
+                            >
+                              🔓
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startForeignKeyCreation(table.id, column.id);
+                              }}
+                              className="text-gray-400 hover:text-green-600 p-1"
+                              title="Create Foreign Key"
+                            >
+                              🔗
+                            </button>
+                          )}
+                          {column.isForeignKey && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startForeignKeyCreation(table.id, column.id);
+                              }}
+                              className="text-gray-400 hover:text-blue-600 p-1"
+                              title="Edit Foreign Key"
+                            >
+                              ✏️
+                            </button>
+                          )}
+                          {/* Column reordering buttons */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              moveColumnUp(table.id, column.id);
+                            }}
+                            className="text-gray-400 hover:text-blue-600 p-1"
+                            title="Move Column Up"
+                            disabled={index === 0}
+                          >
+                            <ChevronUp className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              moveColumnDown(table.id, column.id);
+                            }}
+                            className="text-gray-400 hover:text-blue-600 p-1"
+                            title="Move Column Down"
+                            disabled={index === table.columns.length - 1}
+                          >
+                            <ChevronDown className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteColumn(table.id, column.id);
+                            }}
+                            className="text-gray-400 hover:text-red-600 p-1"
+                            title="Delete Column"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -1134,68 +1612,240 @@ export const DiagramEditorPage: React.FC = () => {
       {/* Export Modal */}
       {showExportModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96">
+          <div className="bg-white rounded-lg p-6 w-[700px] max-h-[85vh] overflow-y-auto">
             <h3 className="text-lg font-semibold mb-4">Export Diagram</h3>
             <div className="space-y-4">
+              {/* Export Type Selection */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Framework</label>
-                <select
-                  value={exportConfig.framework}
-                  onChange={(e) => setExportConfig({...exportConfig, framework: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                >
-                  <option value="yii2">Yii2 Framework</option>
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Namespace</label>
-                <input
-                  type="text"
-                  value={exportConfig.namespace}
-                  onChange={(e) => setExportConfig({...exportConfig, namespace: e.target.value})}
-                  placeholder="app\\models"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Generate Files</label>
-                <div className="space-y-2">
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={exportConfig.generateMigration}
-                      onChange={(e) => setExportConfig({...exportConfig, generateMigration: e.target.checked})}
-                      className="mr-2"
-                    />
-                    Database Migrations
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={exportConfig.generateModel}
-                      onChange={(e) => setExportConfig({...exportConfig, generateModel: e.target.checked})}
-                      className="mr-2"
-                    />
-                    ActiveRecord Models
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={exportConfig.generateRepository}
-                      onChange={(e) => setExportConfig({...exportConfig, generateRepository: e.target.checked})}
-                      className="mr-2"
-                    />
-                    Repository Classes
-                  </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Export Type</label>
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    onClick={() => {
+                      console.log('Setting export type to Framework');
+                      setExportType('framework');
+                      console.log('Export type set to:', 'framework');
+                    }}
+                    className={`p-3 rounded-lg border-2 text-center transition-colors ${
+                      exportType === 'framework'
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="text-2xl mb-1">⚙️</div>
+                    <div className="text-sm font-medium">Framework Code</div>
+                    <div className="text-xs text-gray-500">Generate application code</div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      console.log('Setting export type to SQL');
+                      setExportType('sql');
+                      console.log('Export type set to:', 'sql');
+                    }}
+                    className={`p-3 rounded-lg border-2 text-center transition-colors ${
+                      exportType === 'sql'
+                        ? 'border-green-500 bg-green-50 text-green-700'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="text-2xl mb-1">🗄️</div>
+                    <div className="text-sm font-medium">SQL Schema</div>
+                    <div className="text-xs text-gray-500">Generate database schema</div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      console.log('Setting export type to PDF');
+                      setExportType('pdf');
+                      console.log('Export type set to:', 'pdf');
+                    }}
+                    className={`p-3 rounded-lg border-2 text-center transition-colors ${
+                      exportType === 'pdf'
+                        ? 'border-red-500 bg-red-50 text-red-700'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="text-2xl mb-1">📄</div>
+                    <div className="text-sm font-medium">PDF Documentation</div>
+                    <div className="text-xs text-gray-500">Generate documentation</div>
+                  </button>
                 </div>
               </div>
 
+              {/* Database Type Selection (for SQL and PDF) */}
+              {(exportType === 'sql' || exportType === 'pdf') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Database Type</label>
+                  <select
+                    value={exportConfig.databaseType}
+                    onChange={(e) => setExportConfig({...exportConfig, databaseType: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  >
+                    <option value="postgresql">PostgreSQL</option>
+                    <option value="mysql">MySQL</option>
+                    <option value="sqlserver">SQL Server</option>
+                    <option value="mariadb">MariaDB</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Framework Selection (only for framework export) */}
+              {exportType === 'framework' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Framework</label>
+                  <select
+                    value={exportConfig.framework}
+                    onChange={(e) => setExportConfig({...exportConfig, framework: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  >
+                    <option value="yii2">Yii2 Framework</option>
+                  </select>
+                </div>
+              )}
+              
+              {/* Namespace (only for framework export) */}
+              {exportType === 'framework' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Namespace</label>
+                  <input
+                    type="text"
+                    value={exportConfig.namespace}
+                    onChange={(e) => setExportConfig({...exportConfig, namespace: e.target.value})}
+                    placeholder={generateNamespace(diagramName)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  />
+                </div>
+              )}
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Schema Name</label>
+                <input
+                  type="text"
+                  value={exportConfig.schemaName}
+                  onChange={(e) => setExportConfig({...exportConfig, schemaName: e.target.value})}
+                  placeholder="public"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {exportType === 'framework' 
+                    ? `Tables will be prefixed with this schema name (e.g., ${exportConfig.schemaName}.table_name)`
+                    : `Database schema name for ${exportType.toUpperCase()} export`
+                  }
+                </p>
+              </div>
+
+              {/* Document Title (for PDF export) */}
+              {exportType === 'pdf' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Document Title</label>
+                  <input
+                    type="text"
+                    value={exportConfig.documentTitle}
+                    onChange={(e) => setExportConfig({...exportConfig, documentTitle: e.target.value})}
+                    placeholder={diagramName || "Database Schema Documentation"}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Title that will appear at the top of the PDF document
+                  </p>
+                </div>
+              )}
+
+
+              {/* Table Selection with Ordering (only for framework export) */}
+              {exportType === 'framework' && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Select Tables (Drag to reorder for migration creation order)
+                    </label>
+                    <div className="space-x-2">
+                      <button
+                        type="button"
+                        onClick={handleSelectAllTables}
+                        className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                      >
+                        Select All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDeselectAllTables}
+                        className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                      >
+                        Deselect All
+                      </button>
+                    </div>
+                  </div>
+                <div className="max-h-80 overflow-y-auto border border-gray-300 rounded-md p-3 space-y-2">
+                  {orderedTables.map((table, index) => (
+                    <div
+                      key={table.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, table.id)}
+                      onDragOver={handleDragOver}
+                      onDrop={(e) => handleDrop(e, table.id)}
+                      onDragEnd={handleDragEnd}
+                      className={`flex items-center p-2 rounded-md border-2 border-dashed transition-colors ${
+                        draggedTableId === table.id
+                          ? 'border-blue-400 bg-blue-50 opacity-50'
+                          : 'border-transparent hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {/* Drag Handle */}
+                      <div className="mr-3 cursor-move text-gray-400 hover:text-gray-600">
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M7 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" />
+                        </svg>
+                      </div>
+                      
+                      {/* Order Number */}
+                      <div className="mr-3 w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs font-medium text-gray-600">
+                        {index + 1}
+                      </div>
+                      
+                      {/* Checkbox and Table Info */}
+                      <label className="flex items-center flex-1 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={exportConfig.selectedTables.includes(table.name)}
+                          onChange={(e) => handleTableSelection(table.name, e.target.checked)}
+                          className="mr-2"
+                        />
+                        <span className="text-sm text-gray-700">
+                          {table.name} ({table.columns.length} columns)
+                        </span>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+                  <div className="mt-2 text-xs text-gray-500">
+                    💡 Drag tables to reorder. Tables will be created in this order to avoid foreign key dependency issues.
+                  </div>
+                </div>
+              )}
+
+              {/* Skip Existing Entities Option (only for framework export) */}
+              {exportType === 'framework' && (
+                <div>
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={exportConfig.skipExistingEntities}
+                      onChange={(e) => setExportConfig({...exportConfig, skipExistingEntities: e.target.checked})}
+                      className="mr-2"
+                    />
+                    <span className="text-sm text-gray-700">
+                      Skip existing entities (prevent conflicts with other modules)
+                    </span>
+                  </label>
+                </div>
+              )}
+
               <div className="flex space-x-3 pt-4">
                 <button
-                  onClick={exportDiagram}
-                  disabled={isExporting}
+                  onClick={() => {
+                    console.log('Export button clicked, current export type:', exportType);
+                    exportDiagram();
+                  }}
+                  disabled={isExporting || (exportType === 'framework' && exportConfig.selectedTables.length === 0)}
                   className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-purple-300 disabled:cursor-not-allowed flex items-center justify-center"
                 >
                   {isExporting ? (
@@ -1209,7 +1859,9 @@ export const DiagramEditorPage: React.FC = () => {
                   ) : (
                     <>
                       <Download className="w-4 h-4 mr-2" />
-                      Export & Download
+                      {exportType === 'framework' && `Export & Download (${exportConfig.selectedTables.length} tables)`}
+                      {exportType === 'sql' && 'Export SQL Schema'}
+                      {exportType === 'pdf' && 'Export PDF Documentation'}
                     </>
                   )}
                 </button>

@@ -1,0 +1,52 @@
+<?php
+
+namespace {{namespace}}\models\setter;
+
+/**
+ * This is the Setter Trait class for [[{{namespace}}\models\\{{modelName}}]].
+ *
+ * @see {{namespace}}\models\\{{modelName}}
+ */
+trait {{modelName}}SetterTrait
+{
+{{#each columns}}
+{{#unless primaryKey}}
+    public function set{{properCase name}}($value)
+    {
+        $this->{{name}} = $value;
+    }
+
+{{/unless}}
+{{/each}}
+{{#if hasStatus}}
+    /**
+     * Activate {{modelNameLower}}
+     *
+     * @return void
+     */
+    public function activate()
+    {
+        $this->status = 1;
+    }
+
+    /**
+     * Deactivate {{modelNameLower}}
+     *
+     * @return void
+     */
+    public function deactivate()
+    {
+        $this->status = 0;
+    }
+
+    /**
+     * Suspend {{modelNameLower}}
+     *
+     * @return void
+     */
+    public function suspend()
+    {
+        $this->status = 2;
+    }
+{{/if}}
+} 

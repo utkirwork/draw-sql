@@ -37,6 +37,7 @@ export interface FrameworkConfig {
     name: string;
     version: string;
     namespace?: string;
+    schemaName?: string;
     description?: string;
     fileStructure?: any;
 }
@@ -69,7 +70,7 @@ export abstract class FrameworkPlugin {
     /**
      * Generate files from diagram data
      */
-    public abstract generateFiles(tables: DiagramTable[]): Promise<GeneratedFile[]>;
+    public abstract generateFiles(tables: DiagramTable[], config?: any): Promise<GeneratedFile[]>;
 
     /**
      * Get supported file types

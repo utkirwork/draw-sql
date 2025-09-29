@@ -1,0 +1,48 @@
+<?php
+
+namespace {{namespace}}\models\getter;
+
+/**
+ * This is the Getter Trait class for [[{{namespace}}\models\\{{modelName}}]].
+ *
+ * @see {{namespace}}\models\\{{modelName}}
+ */
+trait {{modelName}}GetterTrait
+{
+{{#each columns}}
+{{#unless primaryKey}}
+    public function get{{properCase name}}(): ?{{phpType}}
+    {
+        return $this->{{name}};
+    }
+
+{{/unless}}
+{{/each}}
+{{#if hasStatus}}
+    /**
+     * Check if {{modelNameLower}} is active
+     *
+     * @return bool
+     */
+    public function isActive(): bool
+    {
+        return $this->status === 1 && !$this->is_deleted;
+    }
+
+    /**
+     * Get status text
+     *
+     * @return string
+     */
+    public function getStatusText(): string
+    {
+        $statuses = [
+            0 => 'Inactive',
+            1 => 'Active',
+            2 => 'Suspended',
+        ];
+
+        return $statuses[$this->status] ?? 'Unknown';
+    }
+{{/if}}
+} 

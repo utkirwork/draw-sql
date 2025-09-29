@@ -1,0 +1,54 @@
+<?php
+
+namespace {{namespace}}\dto\\{{modelNameLower}};
+
+/**
+ * Class {{modelName}}CreateDTO
+ * DTO for creating {{modelName}} model
+ */
+class {{modelName}}CreateDTO
+{
+{{#each columns}}
+{{#unless primaryKey}}
+    private ${{name}}{{#if isString}} = ''{{else if isInteger}} = 0{{else if isBoolean}} = false{{else}} = ''{{/if}};
+
+{{/unless}}
+{{/each}}
+{{#each columns}}
+{{#unless primaryKey}}
+    /**
+     * Set {{label}}
+     * @param {{#if isString}}string{{else if isInteger}}int{{else if isBoolean}}bool{{else}}string{{/if}} ${{name}}
+     * @return $this
+     */
+    public function set{{properCase name}}(${{name}})
+    {
+        $this->{{name}} = ${{name}};
+        return $this;
+    }
+
+    /**
+     * Get {{label}}
+     * @return {{#if isString}}string{{else if isInteger}}int{{else if isBoolean}}bool{{else}}string{{/if}}
+     */
+    public function get{{properCase name}}()
+    {
+        return $this->{{name}};
+    }
+
+{{/unless}}
+{{/each}}
+    /**
+     * Get data array
+     * @return array
+     */
+    public function toArray()
+    {
+        return [
+{{#each columns}}
+{{#unless primaryKey}}
+            '{{name}}' => $this->{{name}},{{/unless}}
+{{/each}}
+        ];
+    }
+} 

@@ -1,0 +1,134 @@
+<?php
+
+namespace {{namespace}}\service;
+
+use {{namespace}}\dto\\{{modelNameLower}}\\{{modelName}}CreateDTO;
+use {{namespace}}\dto\\{{modelNameLower}}\\{{modelName}}UpdateDTO;
+use {{namespace}}\models\\{{modelName}};
+use {{namespace}}\repository\\{{modelName}}Repository;
+use yii\base\BaseObject;
+use yii\base\Exception;
+
+/**
+ * This is the Service class for [[{{namespace}}\models\\{{modelName}}]].
+ *
+ * @see {{modelName}}
+ */
+class {{modelName}}Service extends BaseObject
+{
+    private {{modelName}}Repository $repository;
+
+    public function __construct({{modelName}}Repository $repository, $config = [])
+    {
+        $this->repository = $repository;
+        parent::__construct($config);
+    }
+
+    /**
+     * Create new {{modelName}}
+     *
+     * @param {{modelName}}CreateDTO $createDTO
+     * @return {{modelName}}
+     * @throws Exception
+     */
+    public function create({{modelName}}CreateDTO $createDTO): {{modelName}}
+    {
+        $model = new {{modelName}}();
+        
+        // Copy attributes from DTO
+        {{#each columns}}
+        {{#unless primaryKey}}
+        {{#unless isTimestamp}}
+        if (isset($createDTO->{{name}})) {
+            $model->{{name}} = $createDTO->{{name}};
+        }
+        {{/unless}}
+        {{/unless}}
+        {{/each}}
+
+        {{#if hasStatus}}
+        // Set default status
+        if (!isset($model->status)) {
+            $model->status = 1; // Active by default
+        }
+        {{/if}}
+
+        return $this->repository->saveThrow($model);
+    }
+
+    /**
+     * Update existing {{modelName}}
+     *
+     * @param {{modelName}} $model
+     * @param {{modelName}}UpdateDTO $updateDTO
+     * @return {{modelName}}
+     * @throws Exception
+     */
+    public function update({{modelName}} $model, {{modelName}}UpdateDTO $updateDTO): {{modelName}}
+    {
+        // Copy attributes from DTO
+        {{#each columns}}
+        {{#unless primaryKey}}
+        {{#unless isTimestamp}}
+        if (isset($updateDTO->{{name}})) {
+            $model->{{name}} = $updateDTO->{{name}};
+        }
+        {{/unless}}
+        {{/unless}}
+        {{/each}}
+
+        return $this->repository->saveThrow($model);
+    }
+
+    {{#if hasStatus}}
+    /**
+     * Activate {{modelName}}
+     *
+     * @param {{modelName}} $model
+     * @return {{modelName}}
+     * @throws Exception
+     */
+    public function activate({{modelName}} $model): {{modelName}}
+    {
+        $model->status = 1;
+        return $this->repository->saveThrow($model);
+    }
+
+    /**
+     * Deactivate {{modelName}}
+     *
+     * @param {{modelName}} $model
+     * @return {{modelName}}
+     * @throws Exception
+     */
+    public function deactivate({{modelName}} $model): {{modelName}}
+    {
+        $model->status = 0;
+        return $this->repository->saveThrow($model);
+    }
+
+    /**
+     * Suspend {{modelName}}
+     *
+     * @param {{modelName}} $model
+     * @return {{modelName}}
+     * @throws Exception
+     */
+    public function suspend({{modelName}} $model): {{modelName}}
+    {
+        $model->status = 2;
+        return $this->repository->saveThrow($model);
+    }
+    {{/if}}
+
+    /**
+     * Delete {{modelName}}
+     *
+     * @param {{modelName}} $model
+     * @return bool
+     */
+    public function delete({{modelName}} $model): bool
+    {
+        return $this->repository->delete($model);
+    }
+} 

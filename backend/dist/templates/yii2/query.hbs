@@ -1,0 +1,36 @@
+<?php
+
+namespace {{namespace}}\models\query;
+
+/**
+ * This is the ActiveQuery class for [[{{namespace}}\models\\{{modelName}}]].
+ *
+ * @see {{namespace}}\models\\{{modelName}}
+ */
+class {{modelName}}Query extends \yii\db\ActiveQuery
+{
+{{#each columns}}
+    public function {{name}}($value): self
+    {
+        return $this->andWhere([$this->getTableName() . '.[[{{name}}]]' => $value]);
+    }
+
+{{/each}}
+    /**
+     * {@inheritdoc}
+     * @return {{namespace}}\models\\{{modelName}}[]|array
+     */
+    public function all($db = null)
+    {
+        return parent::all($db);
+    }
+
+    /**
+     * {@inheritdoc}
+     * @return {{namespace}}\models\\{{modelName}}|array|null
+     */
+    public function one($db = null)
+    {
+        return parent::one($db);
+    }
+} 

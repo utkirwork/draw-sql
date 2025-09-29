@@ -59,7 +59,7 @@ router.post('/register', async (req, res) => {
 
     logger.info(`User registered: ${email}`);
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       data: {
         user: {
@@ -73,7 +73,7 @@ router.post('/register', async (req, res) => {
     });
   } catch (error) {
     logger.error('Registration error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Registration failed'
     });
@@ -128,7 +128,7 @@ router.post('/login', async (req, res) => {
 
     logger.info(`User logged in: ${email}`);
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         user: {
@@ -142,7 +142,7 @@ router.post('/login', async (req, res) => {
     });
   } catch (error) {
     logger.error('Login error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Login failed'
     });

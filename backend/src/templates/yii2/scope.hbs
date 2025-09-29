@@ -1,0 +1,189 @@
+<?php
+
+namespace {{namespace}}\models\scope;
+
+use yii\behaviors\TimestampBehavior;
+use yii\behaviors\BlameableBehavior;
+use yii\helpers\ArrayHelper;
+use yii2tech\ar\softdelete\SoftDeleteBehavior;
+
+/**
+ * This is the Scope Trait class for [[{{namespace}}\models\\{{modelName}}]].
+ *
+ * @see {{namespace}}\models\\{{modelName}}
+ */
+trait {{modelName}}ScopeTrait
+{
+    /**
+     * @inheritdoc
+     */
+    public function behaviors()
+    {
+        return ArrayHelper::merge(parent::behaviors(), [
+            'timestamp' => [
+                'class' => TimestampBehavior::class,
+                'createdAtAttribute' => 'created_at',
+                'updatedAtAttribute' => 'updated_at',
+                'value' => function() {
+                    return date('Y-m-d H:i:s');
+                }
+            ],
+            'blameable' => [
+                'class' => BlameableBehavior::class,
+                'createdByAttribute' => 'created_by',
+                'updatedByAttribute' => 'updated_by',
+                'value' => function() {
+                    return \Yii::$app->user->id ?? null;
+                }
+            ],
+            'softDelete' => [
+                'class' => \yii2tech\ar\softdelete\SoftDeleteBehavior::class,
+                'softDeleteAttributeValues' => [
+                    'is_deleted' => true,
+                    'deleted_at' => function() {
+                        return date('Y-m-d H:i:s');
+                    },
+                    'deleted_by' => function() {
+                        return \Yii::$app->user->id ?? null;
+                    }
+                ],
+                'restoreAttributeValues' => [
+                    'is_deleted' => false,
+                    'deleted_at' => null,
+                    'deleted_by' => null
+                ],
+                'replaceRegularDelete' => true
+            ],
+        ]);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function rules()
+    {
+        return [
+{{#each columns}}
+{{#unless isTimestamp}}
+{{#unless isUserField}}
+{{#unless isSoftDelete}}
+{{#if required}}
+            [['{{name}}'], 'required'],
+{{/if}}
+{{#if isString}}
+            [['{{name}}'], 'string'{{#if maxLength}}, 'max' => {{maxLength}}{{/if}}],
+{{/if}}
+{{#if isInteger}}
+            [['{{name}}'], 'integer'],
+{{/if}}
+{{#if isBoolean}}
+            [['{{name}}'], 'boolean'],
+{{/if}}
+{{#if isEmail}}
+            [['{{name}}'], 'email'],
+{{/if}}
+{{/unless}}
+{{/unless}}
+{{/unless}}
+{{/each}}
+            // Behavior-managed attributes
+            [['created_at', 'updated_at', 'deleted_at'], 'safe'],
+            [['created_by', 'updated_by', 'deleted_by'], 'string'],
+            [['is_deleted'], 'boolean'],
+            [['is_deleted'], 'default', 'value' => false],
+{{#if hasStatus}}
+            // Status management
+            [['status'], 'integer'],
+            [['status'], 'in', 'range' => [0, 1, 2]], // 0=inactive, 1=active, 2=suspended
+            [['status'], 'default', 'value' => 1],
+{{/if}}
+        ];
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function attributeLabels()
+    {
+        return [
+{{#each columns}}
+            '{{name}}' => '{{label}}',
+{{/each}}
+            // Default system attributes
+            'created_at' => 'Created At',
+            'updated_at' => 'Updated At',
+            'deleted_at' => 'Deleted At',
+            'created_by' => 'Created By',
+            'updated_by' => 'Updated By',
+            'deleted_by' => 'Deleted By',
+            'is_deleted' => 'Is Deleted',
+{{#if hasStatus}}
+            'status' => 'Status',
+{{/if}}
+        ];
+    }
+
+{{#if hasStatus}}
+    /**
+     * Get status options
+     * @return array
+     */
+    public static function getStatusOptions(): array
+    {
+        return [
+            0 => 'Inactive',
+            1 => 'Active',
+            2 => 'Suspended',
+        ];
+    }
+
+    /**
+     * Get status text
+     * @return string
+     */
+    public function getStatusText(): string
+    {
+        $options = static::getStatusOptions();
+        return $options[$this->status] ?? 'Unknown';
+    }
+
+    /**
+     * Check if active
+     * @return bool
+     */
+    public function isActive(): bool
+    {
+        return $this->status === 1 && !$this->is_deleted;
+    }
+
+    /**
+     * Activate record
+     * @return bool
+     */
+    public function activate(): bool
+    {
+        $this->status = 1;
+        return $this->save(false);
+    }
+
+    /**
+     * Deactivate record
+     * @return bool
+     */
+    public function deactivate(): bool
+    {
+        $this->status = 0;
+        return $this->save(false);
+    }
+
+    /**
+     * Suspend record
+     * @return bool
+     */
+    public function suspend(): bool
+    {
+        $this->status = 2;
+        return $this->save(false);
+    }
+{{/if}}
+} 

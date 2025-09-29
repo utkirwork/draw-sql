@@ -1,0 +1,40 @@
+<?php
+
+namespace {{namespace}}\modules\api;
+
+use yii\filters\auth\CompositeAuth;
+use yii\filters\auth\HttpBearerAuth;
+use yii\helpers\ArrayHelper;
+
+/**
+ * Class {{moduleClassName}}
+ * @package {{namespace}}\modules\api
+ */
+class {{moduleClassName}} extends \yii\base\Module
+{
+    const PREFIX_API = "v1/{{moduleName}}/";
+    const MODULE_NAME = "{{moduleName}}";
+
+    /**
+     * @return array
+     */
+    public function behaviors()
+    {
+        $behaviors = parent::behaviors();
+        $behaviors['authenticator'] = $this->getAuthenticator();
+        return $behaviors;
+    }
+
+    /**
+     * @return array
+     */
+    private function getAuthenticator()
+    {
+        return ArrayHelper::merge([
+            'class' => CompositeAuth::class,
+            'authMethods' => [
+                HttpBearerAuth::class,
+            ],
+        ], require_once \Yii::getAlias('@{{namespacePath}}/modules/api/config/authenticator.php'));
+    }
+}

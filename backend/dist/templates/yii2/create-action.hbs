@@ -1,0 +1,78 @@
+<?php
+
+namespace {{namespace}}\actions\\{{modelNameLower}};
+
+use common\traits\RequestMethodTrait;
+use {{namespace}}\forms\\{{modelNameLower}}\Create{{modelName}}Form;
+use yii\base\Action;
+use yii\base\InvalidConfigException;
+
+/**
+ * Create {{modelName}} Action
+ * 
+ * @OA\Post(
+ *     path="/v1/{{moduleName}}/{{modelNameLower}}",
+ *     tags={"{{modelNameLower}}"},
+ *     summary="Create a new {{modelNameLower}}",
+ *     description="Creates a new {{modelNameLower}} record in the system",
+ *     @OA\RequestBody(
+ *         required=true,
+ *         @OA\JsonContent(
+ *             @OA\Property(property="name", type="string", example="Sample {{modelName}}"),
+ *             @OA\Property(property="description", type="string", example="Sample description"),
+ *             @OA\Property(property="status", type="integer", example=1)
+ *         )
+ *     ),
+ *     @OA\Response(
+ *         response=201,
+ *         description="{{modelName}} created successfully",
+ *         @OA\JsonContent(
+ *             @OA\Property(property="id", type="integer", example=1),
+ *             @OA\Property(property="name", type="string", example="Sample {{modelName}}"),
+ *             @OA\Property(property="created_at", type="string", format="datetime"),
+ *             @OA\Property(property="updated_at", type="string", format="datetime")
+ *         )
+ *     ),
+ *     @OA\Response(
+ *         response=400,
+ *         description="Validation error",
+ *         @OA\JsonContent(
+ *             @OA\Property(property="errors", type="object", example={"name": {"Name cannot be blank"}})
+ *         )
+ *     ),
+ *     @OA\Response(
+ *         response=422,
+ *         description="Unprocessable entity",
+ *         @OA\JsonContent(
+ *             @OA\Property(property="errors", type="object")
+ *         )
+ *     )
+ * )
+ */
+class Create{{modelName}}Action extends Action
+{
+    use RequestMethodTrait;
+
+    public $form;
+
+    public function __construct($id, $controller, Create{{modelName}}Form $form, $config = [])
+    {
+        parent::__construct($id, $controller, $config);
+        $this->form = $form;
+    }
+
+    /**
+     * Create a new {{modelName}} record
+     * 
+     * @return array|Create{{modelName}}Form The created model or form with validation errors
+     * @throws InvalidConfigException
+     * @throws \Exception
+     */
+    public function run()
+    {
+        if ($this->form->load($this->getRequestParams(), '') && $this->form->validate()) {
+            return $this->form->create();
+        }
+        return $this->form;
+    }
+}

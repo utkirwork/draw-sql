@@ -26,17 +26,57 @@ export class TemplateEngine {
             return a === b;
         });
 
-        Handlebars.registerHelper('capitalize', function(str: string) {
+        Handlebars.registerHelper('capitalize', function(str: any) {
+            if (!str || typeof str !== 'string') return '';
             return str.charAt(0).toUpperCase() + str.slice(1);
         });
 
-        Handlebars.registerHelper('camelCase', function(str: string) {
+        Handlebars.registerHelper('camelCase', function(str: any) {
+            if (!str || typeof str !== 'string') return '';
             return str.replace(/_([a-z])/g, (g) => g[1]?.toUpperCase() || '');
         });
 
-        Handlebars.registerHelper('pascalCase', function(str: string) {
+        Handlebars.registerHelper('pascalCase', function(str: any) {
+            if (!str || typeof str !== 'string') return '';
             const camelCase = str.replace(/_([a-z])/g, (g) => g[1]?.toUpperCase() || '');
             return camelCase.charAt(0).toUpperCase() + camelCase.slice(1);
+        });
+
+        // Alias for pascalCase - used in templates as properCase
+        Handlebars.registerHelper('properCase', function(str: any) {
+            if (!str || typeof str !== 'string') return '';
+            const camelCase = str.replace(/_([a-z])/g, (g) => g[1]?.toUpperCase() || '');
+            return camelCase.charAt(0).toUpperCase() + camelCase.slice(1);
+        });
+
+        // Additional helper for lowercasing
+        Handlebars.registerHelper('lowerCase', function(str: string) {
+            if (!str) return '';
+            return str.toLowerCase();
+        });
+
+        // Helper for checking if string contains substring
+        Handlebars.registerHelper('contains', function(str: string, substring: string) {
+            if (!str || !substring) return false;
+            return str.includes(substring);
+        });
+
+        // Helper for pluralization
+        Handlebars.registerHelper('pluralize', function(str: any) {
+            if (!str || typeof str !== 'string') return '';
+            if (str.endsWith('y')) {
+                return str.slice(0, -1) + 'ies';
+            } else if (str.endsWith('s') || str.endsWith('x') || str.endsWith('z') || str.endsWith('ch') || str.endsWith('sh')) {
+                return str + 'es';
+            } else {
+                return str + 's';
+            }
+        });
+
+        // Helper for debugging - logs values to console
+        Handlebars.registerHelper('debug', function(value: any) {
+            console.log('Handlebars Debug:', value);
+            return '';
         });
     }
 

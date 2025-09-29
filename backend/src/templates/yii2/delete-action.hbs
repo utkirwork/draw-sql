@@ -1,0 +1,74 @@
+<?php
+
+namespace {{namespace}}\actions\\{{modelNameLower}};
+
+use {{namespace}}\service\\{{modelName}}Service;
+use yii\base\Action;
+use yii\web\NotFoundHttpException;
+
+/**
+ * Delete {{modelName}} Action
+ * 
+ * @OA\Delete(
+ *     path="/v1/{{moduleName}}/{{modelNameLower}}/{id}",
+ *     tags={"{{modelNameLower}}"},
+ *     summary="Delete {{modelNameLower}} by ID",
+ *     description="Deletes an existing {{modelNameLower}} record by its ID",
+ *     @OA\Parameter(
+ *         name="id",
+ *         in="path",
+ *         required=true,
+ *         description="{{modelName}} ID",
+ *         @OA\Schema(type="integer", example=1)
+ *     ),
+ *     @OA\Response(
+ *         response=200,
+ *         description="{{modelName}} deleted successfully",
+ *         @OA\JsonContent(
+ *             @OA\Property(property="message", type="string", example="{{modelName}} deleted successfully")
+ *         )
+ *     ),
+ *     @OA\Response(
+ *         response=404,
+ *         description="{{modelName}} not found",
+ *         @OA\JsonContent(
+ *             @OA\Property(property="name", type="string", example="Not Found"),
+ *             @OA\Property(property="message", type="string", example="{{modelName}} not found")
+ *         )
+ *     ),
+ *     @OA\Response(
+ *         response=500,
+ *         description="Internal server error",
+ *         @OA\JsonContent(
+ *             @OA\Property(property="name", type="string", example="Exception"),
+ *             @OA\Property(property="message", type="string", example="An error occurred while deleting {{modelName}}")
+ *         )
+ *     )
+ * )
+ */
+class Delete{{modelName}}Action extends Action
+{
+    private {{modelName}}Service ${{modelNameLower}}Service;
+
+    public function __construct($id, $controller, {{modelName}}Service ${{modelNameLower}}Service, $config = [])
+    {
+        parent::__construct($id, $controller, $config);
+        $this->{{modelNameLower}}Service = ${{modelNameLower}}Service;
+    }
+
+    /**
+     * Delete an existing {{modelName}} record
+     * 
+     * @param int $id The {{modelName}} ID to delete
+     * @return array Success message
+     * @throws NotFoundHttpException
+     * @throws \Exception
+     */
+    public function run($id)
+    {
+        if ($this->{{modelNameLower}}Service->delete($id)) {
+            return ['message' => '{{modelName}} deleted successfully'];
+        }
+        throw new NotFoundHttpException('{{modelName}} not found');
+    }
+}

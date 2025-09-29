@@ -1,0 +1,59 @@
+<?php
+
+namespace {{namespace}}\forms\\{{modelNameLower}};
+
+use {{namespace}}\dto\\{{modelNameLower}}\\{{modelName}}UpdateDTO;
+use {{namespace}}\service\\{{modelName}}Service;
+use yii\base\Model;
+
+/**
+ * @OA\Schema(
+ *   type="object",
+ *   description="{{modelName}} Update Form"
+ * )
+ */
+class Update{{modelName}}Form extends Model
+{
+{{#each columns}}
+    /**
+     * @OA\Property(
+     *   property="{{name}}",
+     *   type="{{#if isInteger}}integer{{else if isBoolean}}boolean{{else}}string{{/if}}",
+     *   description="{{label}}"
+     * )
+     */
+    public ${{name}};
+
+{{/each}}
+    private ${{modelNameLower}}Service;
+
+    public function __construct({{modelName}}Service ${{modelNameLower}}Service, $config = [])
+    {
+        parent::__construct($config);
+        $this->{{modelNameLower}}Service = ${{modelNameLower}}Service;
+    }
+
+    /**
+     * @return array
+     */
+    public function rules()
+    {
+        return [
+            {{#each columns}}[["{{name}}"], {{#if isInteger}}"integer"{{else if isBoolean}}"boolean"{{else}}"safe"{{/if}}]{{#unless @last}},{{/unless}}
+            {{/each}}
+        ];
+    }
+
+    /**
+     * @throws \Exception
+     */
+    public function update($id)
+    {
+        $dto = new {{modelName}}UpdateDTO();
+{{#each columns}}
+        $dto->set{{properCase name}}($this->{{name}});
+{{/each}}
+        
+        return $this->{{modelNameLower}}Service->update($id, $dto);
+    }
+}
