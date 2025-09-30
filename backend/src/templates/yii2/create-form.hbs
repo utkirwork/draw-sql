@@ -15,6 +15,7 @@ use yii\base\Model;
 class Create{{modelName}}Form extends Model
 {
 {{#each columns}}
+{{#unless primaryKey}}
     /**
      * @OA\Property(
      *   property="{{name}}",
@@ -24,6 +25,7 @@ class Create{{modelName}}Form extends Model
      */
     public ${{name}};
 
+{{/unless}}
 {{/each}}
     private ${{modelNameLower}}Service;
 
@@ -39,8 +41,8 @@ class Create{{modelName}}Form extends Model
     public function rules()
     {
         return [
-            {{#each requiredFields}}[["{{name}}"], "required"],
-            {{/each}}{{#each columns}}[["{{name}}"], {{#if isInteger}}"integer"{{else if isBoolean}}"boolean"{{else}}"safe"{{/if}}]{{#unless @last}},{{/unless}}
+            {{#each requiredFields}}{{#unless primaryKey}}[["{{name}}"], "required"],
+            {{/unless}}{{/each}}{{#each columns}}{{#unless primaryKey}}[["{{name}}"], {{#if isInteger}}"integer"{{else if isBoolean}}"boolean"{{else}}"safe"{{/if}}]{{#unless @last}},{{/unless}}{{/unless}}
             {{/each}}
         ];
     }
@@ -52,7 +54,9 @@ class Create{{modelName}}Form extends Model
     {
         $dto = new {{modelName}}CreateDTO();
 {{#each columns}}
+{{#unless primaryKey}}
         $dto->set{{properCase name}}($this->{{name}});
+{{/unless}}
 {{/each}}
         
         return $this->{{modelNameLower}}Service->create($dto);

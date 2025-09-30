@@ -39,8 +39,9 @@ class {{modelName}}Service extends BaseObject
         {{#each columns}}
         {{#unless primaryKey}}
         {{#unless isTimestamp}}
-        if (isset($createDTO->{{name}})) {
-            $model->{{name}} = $createDTO->{{name}};
+        $value = $createDTO->get{{properCase name}}();
+        if ($value !== null) {
+            $model->{{name}} = $value;
         }
         {{/unless}}
         {{/unless}}
@@ -70,8 +71,9 @@ class {{modelName}}Service extends BaseObject
         {{#each columns}}
         {{#unless primaryKey}}
         {{#unless isTimestamp}}
-        if (isset($updateDTO->{{name}})) {
-            $model->{{name}} = $updateDTO->{{name}};
+        $value = $updateDTO->get{{properCase name}}();
+        if ($value !== null) {
+            $model->{{name}} = $value;
         }
         {{/unless}}
         {{/unless}}

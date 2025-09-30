@@ -15,6 +15,7 @@ use yii\base\Model;
 class Update{{modelName}}Form extends Model
 {
 {{#each columns}}
+{{#unless primaryKey}}
     /**
      * @OA\Property(
      *   property="{{name}}",
@@ -24,6 +25,7 @@ class Update{{modelName}}Form extends Model
      */
     public ${{name}};
 
+{{/unless}}
 {{/each}}
     private ${{modelNameLower}}Service;
 
@@ -39,7 +41,7 @@ class Update{{modelName}}Form extends Model
     public function rules()
     {
         return [
-            {{#each columns}}[["{{name}}"], {{#if isInteger}}"integer"{{else if isBoolean}}"boolean"{{else}}"safe"{{/if}}]{{#unless @last}},{{/unless}}
+            {{#each columns}}{{#unless primaryKey}}[["{{name}}"], {{#if isInteger}}"integer"{{else if isBoolean}}"boolean"{{else}}"safe"{{/if}}]{{#unless @last}},{{/unless}}{{/unless}}
             {{/each}}
         ];
     }
@@ -51,7 +53,9 @@ class Update{{modelName}}Form extends Model
     {
         $dto = new {{modelName}}UpdateDTO();
 {{#each columns}}
+{{#unless primaryKey}}
         $dto->set{{properCase name}}($this->{{name}});
+{{/unless}}
 {{/each}}
         
         return $this->{{modelNameLower}}Service->update($id, $dto);

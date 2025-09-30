@@ -615,10 +615,12 @@ class Yii2Plugin extends FrameworkPlugin_1.FrameworkPlugin {
      * Prepare service data
      */
     prepareServiceData(table) {
+        // System fields managed by Yii2 behaviors (should not be set manually in Service)
+        const systemFields = ['created_at', 'updated_at', 'deleted_at', 'created_by', 'updated_by', 'deleted_by', 'is_deleted'];
         const columns = table.columns.map(col => ({
             name: col.name,
             primaryKey: col.primaryKey,
-            isTimestamp: ['created_at', 'updated_at', 'deleted_at', 'created_by', 'updated_by', 'deleted_by'].includes(col.name),
+            isTimestamp: systemFields.includes(col.name), // ← is_deleted ham qo'shildi
             properCase: this.toPascalCase(col.name)
         }));
         // Check if status column exists in diagram
@@ -808,11 +810,12 @@ class Yii2Plugin extends FrameworkPlugin_1.FrameworkPlugin {
                 isBoolean: transformed.phpType === 'bool',
                 isEmail: col.name.toLowerCase().includes('email'),
                 maxLength: undefined,
-                required: !col.nullable && !col.primaryKey
+                required: !col.nullable && !col.primaryKey,
+                primaryKey: col.primaryKey // ← QO'SHILDI!
             };
         });
         const requiredFields = type === 'create'
-            ? columns.filter(col => col.required)
+            ? columns.filter(col => col.required && !col.primaryKey) // ← primaryKey exclude
             : [];
         return {
             namespace: this.config.namespace || 'app',

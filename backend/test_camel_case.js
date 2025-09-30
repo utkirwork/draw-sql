@@ -11,3 +11,7 @@ console.log('\nTesting toPascalCase method:');
 console.log('users ->', plugin.toPascalCase('users'));
 console.log('user_profiles ->', plugin.toPascalCase('user_profiles'));
 console.log('user-profiles ->', plugin.toPascalCase('user-profiles'));
+
+
+
+

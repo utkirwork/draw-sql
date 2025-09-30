@@ -20,33 +20,36 @@ trait {{modelName}}SetterTrait
 {{/each}}
 {{#if hasStatus}}
     /**
-     * Activate {{modelNameLower}}
+     * Activate {{modelNameLower}} and save to database
      *
-     * @return void
+     * @return bool
      */
-    public function activate()
+    public function activate(): bool
     {
         $this->status = 1;
+        return $this->save(false);
     }
 
     /**
-     * Deactivate {{modelNameLower}}
+     * Deactivate {{modelNameLower}} and save to database
      *
-     * @return void
+     * @return bool
      */
-    public function deactivate()
+    public function deactivate(): bool
     {
         $this->status = 0;
+        return $this->save(false);
     }
 
     /**
-     * Suspend {{modelNameLower}}
+     * Suspend {{modelNameLower}} and save to database
      *
-     * @return void
+     * @return bool
      */
-    public function suspend()
+    public function suspend(): bool
     {
         $this->status = 2;
+        return $this->save(false);
     }
 {{/if}}
 } 

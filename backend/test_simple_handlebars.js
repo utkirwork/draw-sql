@@ -26,3 +26,7 @@ const compiled2 = Handlebars.compile(template2);
 const result2 = compiled2(data2);
 
 console.log('Result2:', result2);
+
+
+
+

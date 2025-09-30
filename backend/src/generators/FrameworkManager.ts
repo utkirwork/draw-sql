@@ -119,16 +119,21 @@ export class FrameworkManager {
         return diagramData.tables.map((table: any) => ({
             id: table.id || '',
             name: table.name || '',
-            columns: (table.columns || []).map((col: any) => ({
-                id: col.id || '',
-                name: col.name || '',
-                type: col.type || 'varchar',
-                nullable: col.isNullable !== false,
-                primaryKey: col.isPrimaryKey === true,
-                foreignKey: col.isForeignKey === true,
-                comment: col.comment || '',
-                defaultValue: col.defaultValue || ''
-            })),
+            columns: (table.columns || []).map((col: any) => {
+                // Automatically mark 'id' columns as primary key if not explicitly set
+                const isPrimaryKey = col.isPrimaryKey === true || (col.name === 'id' && col.isPrimaryKey !== false);
+                
+                return {
+                    id: col.id || '',
+                    name: col.name || '',
+                    type: col.type || 'varchar',
+                    nullable: col.isNullable !== false,
+                    primaryKey: isPrimaryKey,
+                    foreignKey: col.isForeignKey === true,
+                    comment: col.comment || '',
+                    defaultValue: col.defaultValue || ''
+                };
+            }),
             relationships: (table.relationships || []).map((rel: any) => ({
                 id: rel.id || '',
                 fromTable: rel.fromTable || '',
