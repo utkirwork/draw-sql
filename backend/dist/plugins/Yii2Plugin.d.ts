@@ -17,6 +17,10 @@ export declare class Yii2Plugin extends FrameworkPlugin {
         errors: string[];
     };
     /**
+     * Sort tables by priority first, then by foreign key dependencies
+     */
+    private sortTablesByDependencies;
+    /**
      * Transform column type to Yii2-specific type
      */
     protected transformColumnType(dbType: string): {

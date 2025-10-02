@@ -131,32 +131,43 @@ class FrameworkManager {
         if (!diagramData.tables || !Array.isArray(diagramData.tables)) {
             throw new Error('Invalid diagram data: tables array is required');
         }
-        return diagramData.tables.map((table) => ({
-            id: table.id || '',
-            name: table.name || '',
-            columns: (table.columns || []).map((col) => {
-                // Automatically mark 'id' columns as primary key if not explicitly set
-                const isPrimaryKey = col.isPrimaryKey === true || (col.name === 'id' && col.isPrimaryKey !== false);
-                return {
-                    id: col.id || '',
-                    name: col.name || '',
-                    type: col.type || 'varchar',
-                    nullable: col.isNullable !== false,
-                    primaryKey: isPrimaryKey,
-                    foreignKey: col.isForeignKey === true,
-                    comment: col.comment || '',
-                    defaultValue: col.defaultValue || ''
-                };
-            }),
-            relationships: (table.relationships || []).map((rel) => ({
-                id: rel.id || '',
-                fromTable: rel.fromTable || '',
-                toTable: rel.toTable || '',
-                fromColumn: rel.fromColumn || '',
-                toColumn: rel.toColumn || '',
-                type: rel.type || 'one-to-many'
-            }))
-        }));
+        // Get all relationships from diagram level
+        const allRelationships = diagramData.relationships || [];
+        // Debug: Log all relationships
+        console.log('🔍 All Diagram Relationships:', {
+            totalRelationships: allRelationships.length,
+            relationships: allRelationships
+        });
+        return diagramData.tables.map((table) => {
+            // Find relationships where this table is the source (fromTable)
+            const tableRelationships = allRelationships.filter((rel) => rel.fromTable === table.name || rel.fromTable === table.id);
+            return {
+                id: table.id || '',
+                name: table.name || '',
+                columns: (table.columns || []).map((col) => {
+                    // Automatically mark 'id' columns as primary key if not explicitly set
+                    const isPrimaryKey = col.isPrimaryKey === true || (col.name === 'id' && col.isPrimaryKey !== false);
+                    return {
+                        id: col.id || '',
+                        name: col.name || '',
+                        type: col.type || 'varchar',
+                        nullable: col.isNullable !== false,
+                        primaryKey: isPrimaryKey,
+                        foreignKey: col.isForeignKey === true,
+                        comment: col.comment || '',
+                        defaultValue: col.defaultValue || ''
+                    };
+                }),
+                relationships: tableRelationships.map((rel) => ({
+                    id: rel.id || '',
+                    fromTable: rel.fromTable || '',
+                    toTable: rel.toTable || '',
+                    fromColumn: rel.fromColumn || '',
+                    toColumn: rel.toColumn || '',
+                    type: rel.type || 'one-to-many'
+                }))
+            };
+        });
     }
 }
 exports.FrameworkManager = FrameworkManager;

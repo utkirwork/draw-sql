@@ -26,7 +26,11 @@ class {{migrationClassName}} extends BaseMigrate
 
         $this->createTable($this->getTableNameWithSchemeName(), ArrayHelper::merge([
 {{#each columns}}
-            '{{name}}' => $this->{{yiiType}}{{#unless nullable}}->notNull(){{/unless}}{{#if comment}}->comment('{{comment}}'){{/if}}{{#if defaultValue}}->defaultValue({{#if (eq yiiType 'boolean')}}{{#if defaultValue}}true{{else}}false{{/if}}{{else}}'{{defaultValue}}'{{/if}}){{/if}},
+{{#if primaryKey}}
+            '{{name}}' => $this->{{#if (eq yiiType 'bigInteger')}}bigPrimaryKey(){{else}}primaryKey(){{/if}}{{#if comment}}->comment('{{comment}}'){{/if}},
+{{else}}
+            '{{name}}' => $this->{{yiiType}}(){{#unless nullable}}->notNull(){{/unless}}{{#if nullable}}->defaultValue(null){{/if}}{{#if comment}}->comment('{{comment}}'){{/if}},
+{{/if}}
 {{/each}}
         ], $this->getDefaultColumns()), $options);
 
@@ -78,11 +82,9 @@ class {{migrationClassName}} extends BaseMigrate
         return [
 {{#each foreignKeys}}
             new ForeignGenerateDTO([
-                'column' => '{{column}}',
+                'columns' => '{{column}}',
                 'refTable' => '{{refTable}}',
-                'refColumn' => '{{refColumn}}',
-                'onDelete' => 'CASCADE',
-                'onUpdate' => 'CASCADE'
+                'refTableColumns' => '{{refColumn}}'
             ]),
 {{/each}}
         ];

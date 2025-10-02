@@ -75,7 +75,7 @@ export declare abstract class FrameworkPlugin {
     /**
      * Generate filename for given template and table
      */
-    protected generateFilename(template: string, tableName: string): string;
+    protected generateFilename(template: string, tableName: string, priority?: number): string;
     /**
      * Convert string to PascalCase
      */

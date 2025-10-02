@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, Edit2, ArrowLeft, Home, Grid3X3, Download, ChevronUp, ChevronDown, ChevronDown as ChevronDownIcon, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Edit2, Home, Grid3X3, Download, ChevronUp, ChevronDown, ChevronDown as ChevronDownIcon, ChevronRight } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 
@@ -12,6 +12,7 @@ interface Column {
   isNullable: boolean;
   referencedTable?: string;
   referencedColumn?: string;
+  defaultValue?: string;
 }
 
 interface Table {
@@ -21,6 +22,8 @@ interface Table {
   y: number;
   columns: Column[];
   isCollapsed?: boolean;
+  priority?: number;
+  color?: string;
 }
 
 interface Relationship {
@@ -37,14 +40,14 @@ export const DiagramEditorPage: React.FC = () => {
   const [tables, setTables] = useState<Table[]>([]);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
 
-  const [selectedTable, setSelectedTable] = useState<string | null>(null);
+  // const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [isAddingTable, setIsAddingTable] = useState(false);
   const [newTableName, setNewTableName] = useState('');
   const [editingColumn, setEditingColumn] = useState<{ tableId: string; columnId: string } | null>(null);
   const [isDragging, setIsDragging] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [isCreatingRelationship, setIsCreatingRelationship] = useState(false);
-  const [relationshipStart, setRelationshipStart] = useState<{ tableId: string; columnId: string } | null>(null);
+  // const [isCreatingRelationship, setIsCreatingRelationship] = useState(false);
+  // const [relationshipStart, setRelationshipStart] = useState<{ tableId: string; columnId: string } | null>(null);
   const [showForeignKeyModal, setShowForeignKeyModal] = useState(false);
   const [foreignKeyData, setForeignKeyData] = useState<{
     fromTableId: string;
@@ -52,6 +55,9 @@ export const DiagramEditorPage: React.FC = () => {
     toTableId?: string;
     toColumnId?: string;
   } | null>(null);
+  
+  const [showTableEditModal, setShowTableEditModal] = useState(false);
+  const [editingTable, setEditingTable] = useState<Table | null>(null);
 
   const [isSaving, setIsSaving] = useState(false);
   const [diagramName, setDiagramName] = useState('Untitled Diagram');
@@ -98,6 +104,94 @@ export const DiagramEditorPage: React.FC = () => {
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const { token, isAuthenticated } = useAuthStore();
+
+  // Sort tables by priority first, then by dependencies
+  const sortTablesByDependencies = (tables: Table[]): Table[] => {
+    // First, sort by priority (if priority property exists)
+    const tablesWithPriority = tables.map(table => {
+      const priority = table.priority || 999;
+      return { table, priority };
+    });
+    
+    // Sort by priority (lower number = higher priority)
+    tablesWithPriority.sort((a, b) => a.priority - b.priority);
+    
+    const sortedTables = tablesWithPriority.map(item => item.table);
+    
+    // For export modal, we only need priority sorting
+    // For migration generation, we need dependency sorting
+    return sortedTables;
+  };
+
+  // Sort tables by dependencies for migration generation
+  const sortTablesByDependenciesForMigration = (tables: Table[]): Table[] => {
+    // First, sort by priority (if priority property exists)
+    const tablesWithPriority = tables.map(table => {
+      const priority = table.priority || 999;
+      return { table, priority };
+    });
+    
+    // Sort by priority (lower number = higher priority)
+    tablesWithPriority.sort((a, b) => a.priority - b.priority);
+    
+    const sortedTables = tablesWithPriority.map(item => item.table);
+    
+    // Then apply dependency sorting within same priority groups
+    const sorted: Table[] = [];
+    const visited = new Set<string>();
+    const visiting = new Set<string>();
+    
+    // First, add all independent tables (tables with no foreign keys)
+    const independentTables = sortedTables.filter(table => 
+      !relationships.some(rel => rel.fromTable === table.name)
+    );
+    
+    // Add independent tables first
+    for (const table of independentTables) {
+      if (!visited.has(table.name)) {
+        visited.add(table.name);
+        sorted.push(table);
+      }
+    }
+    
+    const visit = (table: Table) => {
+      if (visiting.has(table.name)) {
+        // Circular dependency detected, add table anyway
+        return;
+      }
+      if (visited.has(table.name)) {
+        return;
+      }
+      
+      visiting.add(table.name);
+      
+      // Find tables that this table depends on (foreign keys)
+      const dependencies = relationships
+        .filter(rel => rel.fromTable === table.name)
+        .map(rel => tables.find(t => t.name === rel.toTable))
+        .filter((dep): dep is Table => dep !== undefined);
+      
+      // Visit dependencies first
+      for (const dep of dependencies) {
+        visit(dep);
+      }
+      
+      visiting.delete(table.name);
+      visited.add(table.name);
+      sorted.push(table);
+    };
+    
+    // Visit dependent tables (tables with foreign keys)
+    const dependentTables = tables.filter(table => 
+      relationships.some(rel => rel.fromTable === table.name)
+    );
+    
+    for (const table of dependentTables) {
+      visit(table);
+    }
+    
+    return sorted;
+  };
 
   // Function to generate namespace from diagram name
   const generateNamespace = (diagramName: string) => {
@@ -149,10 +243,37 @@ export const DiagramEditorPage: React.FC = () => {
         ...prev,
         selectedTables: allTableNames
       }));
-      // Initialize ordered tables with all tables
-      setOrderedTables([...tables]);
+      
+      // Initialize ordered tables with priority-sorted tables
+      const prioritySortedTables = [...tables].sort((a, b) => {
+        const priorityA = a.priority || 999;
+        const priorityB = b.priority || 999;
+        return priorityA - priorityB; // Ascending order
+      });
+      setOrderedTables(prioritySortedTables);
     }
-  }, [showExportModal, tables]);
+  }, [showExportModal, tables, relationships]);
+
+  // Update ordered tables when tables or relationships change
+  useEffect(() => {
+    if (tables.length > 0) {
+      // First sort by priority (ascending), then by dependencies
+      const prioritySortedTables = [...tables].sort((a, b) => {
+        const priorityA = a.priority || 999;
+        const priorityB = b.priority || 999;
+        return priorityA - priorityB; // Ascending order
+      });
+      
+      const sortedTables = sortTablesByDependencies(prioritySortedTables);
+      console.log('🔍 Table sorting debug:', {
+        original: tables.map(t => t.name),
+        prioritySorted: prioritySortedTables.map(t => `${t.name} (P${t.priority || 'no priority'})`),
+        finalSorted: sortedTables.map(t => `${t.name} (P${t.priority || 'no priority'})`),
+        relationships: relationships.map(r => `${r.fromTable} → ${r.toTable}`)
+      });
+      setOrderedTables(prioritySortedTables);
+    }
+  }, [tables, relationships]);
 
   // Load diagram data
   const loadDiagram = async (diagramId: string) => {
@@ -173,6 +294,7 @@ export const DiagramEditorPage: React.FC = () => {
         console.log('Diagram data:', diagram);
         console.log('Diagram title:', diagram.title);
         console.log('Diagram name:', diagram.name);
+        console.log('Canvas data:', diagram.canvas_data);
         
         // Set the diagram data - try multiple possible fields
         const diagramTitle = diagram.title || diagram.name || diagram.diagram_name || 'Untitled Diagram';
@@ -186,8 +308,17 @@ export const DiagramEditorPage: React.FC = () => {
             ? JSON.parse(diagram.canvas_data) 
             : diagram.canvas_data;
           
+          console.log('Parsed canvas data:', canvasData);
+          console.log('Tables from canvas:', canvasData.tables);
+          
           if (canvasData.tables) {
-            setTables(canvasData.tables);
+            // Add priority to existing tables if they don't have it
+            const tablesWithPriority = canvasData.tables.map((table: any, index: number) => ({
+              ...table,
+              priority: table.priority || (index + 1)
+            }));
+            console.log('Tables with priority:', tablesWithPriority);
+            setTables(tablesWithPriority);
           }
           if (canvasData.relationships) {
             setRelationships(canvasData.relationships);
@@ -252,11 +383,15 @@ export const DiagramEditorPage: React.FC = () => {
 
   const addTable = () => {
     if (newTableName.trim()) {
+      // Calculate priority: current table count + 1
+      const priority = tables.length + 1;
+      
       const newTable: Table = {
         id: `${newTableName}-table`,
         name: newTableName,
         x: 100 + tables.length * 50,
         y: 150 + tables.length * 50,
+        priority: priority,
         columns: [
           {
             id: `${newTableName}-id`,
@@ -629,12 +764,17 @@ export const DiagramEditorPage: React.FC = () => {
     setSaveStatus('saving');
     
     try {
+      const canvasData = {
+        tables: tables,
+        relationships: relationships
+      };
+      
+      console.log('Saving diagram with canvas data:', canvasData);
+      console.log('Tables being saved:', tables);
+      
       const diagramData = {
         title: diagramName,
-        canvas_data: JSON.stringify({
-          tables: tables,
-          relationships: relationships
-        }),
+        canvas_data: JSON.stringify(canvasData),
         description: `Database diagram with ${tables.length} tables and ${relationships.length} relationships`
       };
 
@@ -844,7 +984,8 @@ export const DiagramEditorPage: React.FC = () => {
           generateRepository: exportConfig.generateRepository,
           selectedTables: exportConfig.selectedTables,
           skipExistingEntities: exportConfig.skipExistingEntities,
-          tableOrder: orderedTables.map(table => table.name)
+          tableOrder: sortTablesByDependenciesForMigration(tables).map(table => table.name),
+          tablesWithPriority: sortTablesByDependenciesForMigration(tables)
         });
         response = await fetch(url, {
           method: 'POST',
@@ -860,7 +1001,8 @@ export const DiagramEditorPage: React.FC = () => {
             generateRepository: exportConfig.generateRepository,
             selectedTables: exportConfig.selectedTables,
             skipExistingEntities: exportConfig.skipExistingEntities,
-            tableOrder: orderedTables.map(table => table.name)
+            tableOrder: sortTablesByDependenciesForMigration(tables).map(table => table.name),
+          tablesWithPriority: sortTablesByDependenciesForMigration(tables)
           })
         });
         filename = `${diagramName}_generated_codes_${Date.now()}.zip`;
@@ -1240,7 +1382,10 @@ export const DiagramEditorPage: React.FC = () => {
                 onMouseDown={(e) => handleMouseDown(e, table.id)}
               >
                 {/* Table Header */}
-                <div className="bg-blue-600 text-white px-4 py-2 rounded-t-lg flex items-center justify-between">
+                <div 
+                  className="text-white px-4 py-2 rounded-t-lg flex items-center justify-between"
+                  style={{ backgroundColor: table.color || '#2563eb' }}
+                >
                   <div className="flex items-center space-x-2">
                     <button
                       onClick={(e) => {
@@ -1253,20 +1398,38 @@ export const DiagramEditorPage: React.FC = () => {
                       {table.isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDownIcon className="w-4 h-4" />}
                     </button>
                     <h3 className="font-semibold">{table.name}</h3>
+                    {table.priority && (
+                      <span className="text-xs bg-yellow-200 text-yellow-800 px-1 rounded ml-1">
+                        P{table.priority}
+                      </span>
+                    )}
                     {table.isCollapsed && (
                       <span className="text-xs text-blue-200">({table.columns.length} columns)</span>
                     )}
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      addColumn(table.id);
-                    }}
-                    className="text-white hover:bg-blue-700 p-1 rounded"
-                    title="Add Column"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
+                  <div className="flex space-x-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingTable(table);
+                        setShowTableEditModal(true);
+                      }}
+                      className="text-white hover:bg-blue-700 p-1 rounded"
+                      title="Edit table"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        addColumn(table.id);
+                      }}
+                      className="text-white hover:bg-blue-700 p-1 rounded"
+                      title="Add Column"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Table Columns */}
@@ -1484,6 +1647,90 @@ export const DiagramEditorPage: React.FC = () => {
                 </div>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* Table Edit Modal */}
+      {showTableEditModal && editingTable && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96">
+            <h3 className="text-lg font-semibold mb-4">Edit Table</h3>
+            <div className="space-y-4">
+              {/* Table Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Table Name</label>
+                <input
+                  type="text"
+                  value={editingTable.name}
+                  onChange={(e) => setEditingTable({ ...editingTable, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              
+              {/* Priority */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editingTable.priority || ''}
+                  onChange={(e) => setEditingTable({ ...editingTable, priority: parseInt(e.target.value) || undefined })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  placeholder="Enter priority (0 = highest)"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Lower number = higher priority (0 = first, 1 = second, etc.)
+                </p>
+              </div>
+              
+              {/* Color */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Header Color</label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="color"
+                    value={editingTable.color || '#2563eb'}
+                    onChange={(e) => setEditingTable({ ...editingTable, color: e.target.value })}
+                    className="w-12 h-8 border border-gray-300 rounded cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={editingTable.color || '#2563eb'}
+                    onChange={(e) => setEditingTable({ ...editingTable, color: e.target.value })}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
+                    placeholder="#2563eb"
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Choose a color for the table header
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex space-x-3 pt-4">
+              <button
+                onClick={() => {
+                  setTables(tables.map(t => 
+                    t.id === editingTable.id ? editingTable : t
+                  ));
+                  setShowTableEditModal(false);
+                  setEditingTable(null);
+                }}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => {
+                  setShowTableEditModal(false);
+                  setEditingTable(null);
+                }}
+                className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1775,7 +2022,9 @@ export const DiagramEditorPage: React.FC = () => {
                     </div>
                   </div>
                 <div className="max-h-80 overflow-y-auto border border-gray-300 rounded-md p-3 space-y-2">
-                  {orderedTables.map((table, index) => (
+                  {(() => {
+                    console.log('🔍 Export modal orderedTables:', orderedTables.map(t => `${t.name} (P${t.priority || 'no priority'})`));
+                    return orderedTables.map((table, index) => (
                     <div
                       key={table.id}
                       draggable
@@ -1811,10 +2060,16 @@ export const DiagramEditorPage: React.FC = () => {
                         />
                         <span className="text-sm text-gray-700">
                           {table.name} ({table.columns.length} columns)
+                          {table.priority && (
+                            <span className="text-xs bg-yellow-200 text-yellow-800 px-1 rounded ml-1">
+                              P{table.priority}
+                            </span>
+                          )}
                         </span>
                       </label>
                     </div>
-                  ))}
+                  ));
+                  })()}
                 </div>
                   <div className="mt-2 text-xs text-gray-500">
                     💡 Drag tables to reorder. Tables will be created in this order to avoid foreign key dependency issues.

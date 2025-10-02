@@ -13,10 +13,19 @@ export class Yii2Plugin extends FrameworkPlugin {
     public async generateFiles(tables: DiagramTable[], config?: any): Promise<GeneratedFile[]> {
         const files: GeneratedFile[] = [];
 
+        // Use tables with priority from frontend if available, otherwise use original tables
+        let tablesToProcess = config?.tablesWithPriority || tables;
+        
+        // Debug: Log received tables with priority
+        console.log('🔍 Backend Received Tables:', {
+            hasTablesWithPriority: !!config?.tablesWithPriority,
+            tablesCount: tablesToProcess.length,
+            tablesWithPriority: tablesToProcess.map((t: any) => `${t.name} (P${t.priority || 'no priority'})`)
+        });
+        
         // Filter tables based on selected tables
-        let tablesToProcess = tables;
         if (config?.selectedTables && Array.isArray(config.selectedTables)) {
-            tablesToProcess = tables.filter(table => config.selectedTables.includes(table.name));
+            tablesToProcess = tablesToProcess.filter((table: any) => config.selectedTables.includes(table.name));
         }
 
         // If no tables selected, return empty array
@@ -24,9 +33,14 @@ export class Yii2Plugin extends FrameworkPlugin {
             return files;
         }
 
-        // Sort tables based on provided order if available
+        // Sort tables based on foreign key dependencies (only if not already sorted by frontend)
+        if (!config?.tablesWithPriority) {
+            tablesToProcess = this.sortTablesByDependencies(tablesToProcess);
+        }
+        
+        // Sort tables based on provided order if available (after dependency sorting)
         if (config?.tableOrder && Array.isArray(config.tableOrder)) {
-            tablesToProcess.sort((a, b) => {
+            tablesToProcess.sort((a: any, b: any) => {
                 const aIndex = config.tableOrder.indexOf(a.name);
                 const bIndex = config.tableOrder.indexOf(b.name);
                 
@@ -39,12 +53,22 @@ export class Yii2Plugin extends FrameworkPlugin {
                 if (aIndex !== -1) return -1;
                 if (bIndex !== -1) return 1;
                 
-                // If neither table is in the order array, maintain original order
+                // If neither table is in the order array, maintain dependency order
                 return 0;
             });
         }
 
-        for (const table of tablesToProcess) {
+        // Sort tables by priority before processing
+        const prioritySortedTables = [...tablesToProcess].sort((a: any, b: any) => {
+            const priorityA = a.priority || 999;
+            const priorityB = b.priority || 999;
+            return priorityA - priorityB; // Ascending order (P1, P2, P3...)
+        });
+        
+        // Debug: Log final processing order
+        console.log('🔍 Final Processing Order:', prioritySortedTables.map((t: any) => `${t.name} (P${t.priority || 'no priority'})`));
+        
+        for (const table of prioritySortedTables) {
             const modelName = this.toPascalCase(table.name);
             const modelNameLower = this.toCamelCase(table.name);
 
@@ -53,7 +77,7 @@ export class Yii2Plugin extends FrameworkPlugin {
                 const migrationData = this.prepareMigrationData(table);
                 const migrationContent = this.templateEngine.render('migration', migrationData);
                 files.push({
-                    filename: this.generateFilename('migration', table.name),
+                    filename: this.generateFilename('migration', table.name, (table as any).priority),
                     content: migrationContent,
                     path: 'migrations/'
                 });
@@ -305,27 +329,145 @@ export class Yii2Plugin extends FrameworkPlugin {
     }
 
     /**
+     * Sort tables by priority first, then by foreign key dependencies
+     */
+    private sortTablesByDependencies(tables: DiagramTable[]): DiagramTable[] {
+        // First, sort by priority (if priority property exists)
+        const tablesWithPriority = tables.map(table => {
+            const priority = (table as any).priority || 999;
+            return { table, priority };
+        });
+        
+        // Sort by priority (lower number = higher priority)
+        tablesWithPriority.sort((a, b) => a.priority - b.priority);
+        
+        const sortedTables = tablesWithPriority.map(item => item.table);
+        
+        // Debug: Log priority sorting
+        console.log('🔍 Backend Priority Sorting:', {
+            original: tables.map(t => `${t.name} (P${(t as any).priority || 'no priority'})`),
+            prioritySorted: sortedTables.map(t => `${t.name} (P${(t as any).priority || 'no priority'})`)
+        });
+        
+        // Then apply dependency sorting within same priority groups
+        const sorted: DiagramTable[] = [];
+        const visited = new Set<string>();
+        const visiting = new Set<string>();
+        
+        // First, add all independent tables (tables with no foreign keys)
+        const independentTables = sortedTables.filter(table => 
+            !table.relationships || table.relationships.length === 0
+        );
+        
+        // Add independent tables first
+        for (const table of independentTables) {
+            if (!visited.has(table.name)) {
+                visited.add(table.name);
+                sorted.push(table);
+            }
+        }
+        
+        const visit = (table: DiagramTable) => {
+            if (visiting.has(table.name)) {
+                // Circular dependency detected, add table anyway
+                return;
+            }
+            if (visited.has(table.name)) {
+                return;
+            }
+            
+            visiting.add(table.name);
+            
+            // Find tables that this table depends on (foreign keys)
+            const dependencies = (table.relationships || [])
+                .map(rel => rel.toTable)
+                .filter(depTable => tables.some(t => t.name === depTable))
+                .map(depTable => tables.find(t => t.name === depTable))
+                .filter((dep): dep is DiagramTable => dep !== undefined);
+            
+            // Visit dependencies first
+            for (const dep of dependencies) {
+                visit(dep);
+            }
+            
+            visiting.delete(table.name);
+            visited.add(table.name);
+            sorted.push(table);
+        };
+        
+        // Visit dependent tables (tables with foreign keys)
+        const dependentTables = tables.filter(table => 
+            table.relationships && table.relationships.length > 0
+        );
+        
+        for (const table of dependentTables) {
+            visit(table);
+        }
+        
+        return sorted;
+    }
+
+    /**
      * Transform column type to Yii2-specific type
      */
     protected transformColumnType(dbType: string): { frameworkType: string; phpType?: string; validationRules?: string[] } {
         const typeMapping: Record<string, { frameworkType: string; phpType: string; validationRules: string[] }> = {
+            // String types
             'varchar': { frameworkType: 'string', phpType: 'string', validationRules: ['string'] },
+            'char': { frameworkType: 'char', phpType: 'string', validationRules: ['string'] },
             'text': { frameworkType: 'text', phpType: 'string', validationRules: ['string'] },
+            'longtext': { frameworkType: 'longText', phpType: 'string', validationRules: ['string'] },
+            'mediumtext': { frameworkType: 'mediumText', phpType: 'string', validationRules: ['string'] },
+            'tinytext': { frameworkType: 'tinyText', phpType: 'string', validationRules: ['string'] },
+            
+            // Integer types
             'int': { frameworkType: 'integer', phpType: 'int', validationRules: ['integer'] },
+            'integer': { frameworkType: 'integer', phpType: 'int', validationRules: ['integer'] },
             'bigint': { frameworkType: 'bigInteger', phpType: 'int', validationRules: ['integer'] },
+            'smallint': { frameworkType: 'smallInteger', phpType: 'int', validationRules: ['integer'] },
+            'tinyint': { frameworkType: 'tinyInteger', phpType: 'int', validationRules: ['integer'] },
+            
+            // Decimal types
             'decimal': { frameworkType: 'decimal', phpType: 'float', validationRules: ['number'] },
+            'numeric': { frameworkType: 'decimal', phpType: 'float', validationRules: ['number'] },
             'float': { frameworkType: 'float', phpType: 'float', validationRules: ['number'] },
             'double': { frameworkType: 'double', phpType: 'float', validationRules: ['number'] },
+            'real': { frameworkType: 'float', phpType: 'float', validationRules: ['number'] },
+            
+            // Boolean
             'boolean': { frameworkType: 'boolean', phpType: 'bool', validationRules: ['boolean'] },
+            'bool': { frameworkType: 'boolean', phpType: 'bool', validationRules: ['boolean'] },
+            
+            // Date/Time types
             'timestamp': { frameworkType: 'timestamp', phpType: 'string', validationRules: ['datetime'] },
             'datetime': { frameworkType: 'dateTime', phpType: 'string', validationRules: ['datetime'] },
             'date': { frameworkType: 'date', phpType: 'string', validationRules: ['date'] },
             'time': { frameworkType: 'time', phpType: 'string', validationRules: ['time'] },
+            'year': { frameworkType: 'year', phpType: 'int', validationRules: ['integer'] },
+            
+            // Binary types
+            'binary': { frameworkType: 'binary', phpType: 'string', validationRules: ['safe'] },
+            'varbinary': { frameworkType: 'binary', phpType: 'string', validationRules: ['safe'] },
+            'blob': { frameworkType: 'binary', phpType: 'string', validationRules: ['safe'] },
+            'longblob': { frameworkType: 'longBinary', phpType: 'string', validationRules: ['safe'] },
+            'mediumblob': { frameworkType: 'mediumBinary', phpType: 'string', validationRules: ['safe'] },
+            'tinyblob': { frameworkType: 'tinyBinary', phpType: 'string', validationRules: ['safe'] },
+            
+            // JSON
             'json': { frameworkType: 'json', phpType: 'array', validationRules: ['safe'] },
-            'uuid': { frameworkType: 'string', phpType: 'string', validationRules: ['string'] }
+            
+            // UUID
+            'uuid': { frameworkType: 'string', phpType: 'string', validationRules: ['string'] },
+            
+            // Enum
+            'enum': { frameworkType: 'string', phpType: 'string', validationRules: ['string'] },
+            'set': { frameworkType: 'string', phpType: 'string', validationRules: ['string'] }
         };
 
-        return typeMapping[dbType.toLowerCase()] || { frameworkType: 'string', phpType: 'string', validationRules: ['safe'] };
+        // Extract base type (remove length/precision)
+        const baseType = dbType.toLowerCase().split('(')[0]?.trim() || dbType.toLowerCase();
+        
+        return typeMapping[baseType] || { frameworkType: 'string', phpType: 'string', validationRules: ['safe'] };
     }
 
     /**
@@ -336,7 +478,7 @@ export class Yii2Plugin extends FrameworkPlugin {
         // These should not be written separately in migration
         const defaultAuditColumns = [
             'created_by', 'updated_by', 'created_at', 'updated_at', 
-            'deleted_by', 'deleted_at', 'is_deleted'
+            'deleted_by', 'deleted_at', 'is_deleted', 'status'
         ];
 
         // Filter out only these specific audit columns from diagram data since they're added automatically
@@ -356,11 +498,18 @@ export class Yii2Plugin extends FrameworkPlugin {
         // Standard audit columns will be added automatically by BaseMigrate.getDefaultColumns()
         const allColumns = columns;
 
-        const foreignKeys = table.relationships.map(rel => ({
+        const foreignKeys = (table.relationships || []).map(rel => ({
             column: rel.fromColumn,
-            refTable: rel.toTable,
+            refTable: `${this.config.schemaName || 'public'}.${rel.toTable}`,
             refColumn: rel.toColumn
         }));
+
+        // Debug: Log foreign keys for this table
+        console.log(`🔍 Foreign Keys for ${table.name}:`, {
+            relationshipsCount: (table.relationships || []).length,
+            relationships: table.relationships,
+            foreignKeys: foreignKeys
+        });
 
         return {
             namespace: this.config.namespace || 'app',
@@ -624,7 +773,7 @@ export class Yii2Plugin extends FrameworkPlugin {
      * Prepare relation trait data
      */
     private prepareRelationData(table: DiagramTable, allTables: DiagramTable[]) {
-        const relationships = table.relationships.map(rel => {
+        const relationships = (table.relationships || []).map(rel => {
             const relatedTable = allTables.find(t => t.name === rel.toTable);
             const relatedModelName = relatedTable ? this.toPascalCase(relatedTable.name) : this.toPascalCase(rel.toTable);
             

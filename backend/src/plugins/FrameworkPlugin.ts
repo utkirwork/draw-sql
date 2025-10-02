@@ -90,12 +90,14 @@ export abstract class FrameworkPlugin {
     /**
      * Generate filename for given template and table
      */
-    protected generateFilename(template: string, tableName: string): string {
+    protected generateFilename(template: string, tableName: string, priority?: number): string {
         const pascalCase = this.toPascalCase(tableName);
         
         switch (template) {
             case 'migration':
-                return `M${this.getTimestamp()}Create${pascalCase}Table.php`;
+                // Include priority in migration filename for proper ordering
+                const priorityStr = priority !== undefined ? priority.toString().padStart(2, '0') : '99';
+                return `M${this.getTimestamp()}${priorityStr}Create${pascalCase}Table.php`;
             case 'model':
                 return `${pascalCase}.php`;
             case 'repository':
